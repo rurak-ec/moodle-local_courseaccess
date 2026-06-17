@@ -1,0 +1,43 @@
+# Build artifacts (repo-root build dir only; NOT amd/build/ inside the plugin)
+/build/
+*.zip
+*.tar.gz
+
+# Reference/baseline (no usado aquí; ignorado por paridad con la convención)
+reference/
+workspace/_archive/
+workspace/*.bak.*
+
+# IDEs and editors
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Backup / temp files
+*.bak
+*.swp
+*.swo
+*~
+*.old
+*.tmp
+tmp/
+temp/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# PHP
+vendor/
+composer.phar
+composer.lock
+
+# Moodle
+config.php
+
+# Claude Code local settings
+.claude/settings.local.json
