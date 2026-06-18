@@ -1,0 +1,198 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template local_course_access/configure_form
+
+    Teacher-facing form to configure the single course condition and its options,
+    plus a post-save "what's next" panel guiding access restrictions.
+
+    Context variables required:
+    * formaction - form POST url
+    * courseurl - back-to-course url
+    * sesskey - session key
+    * conditionid - existing condition id (empty for new)
+    * conditionname, conditiondescription, customid - field values
+    * courseid - used as custom_id placeholder
+    * enabled - bool, whether the active switch is checked
+    * options - array of {index, id, name, value} (server-rendered rows)
+    * hascondition - bool, show the "what's next" panel
+    * fielddisplayname - profile field display name (course shortname)
+    * fieldshortname - profile field shortname (cond_..._...)
+    * nextstep3text - pre-rendered step 3 string (has the field name baked in)
+}}
+<div class="lcc-configure">
+
+    <div class="alert alert-info" role="note">
+        <h5 class="mt-0">{{#str}}configintro_heading, local_course_access{{/str}}</h5>
+        <p class="mb-0">{{#str}}configintro_text, local_course_access{{/str}}</p>
+    </div>
+
+    <form action="{{formaction}}" method="post" id="lcc-condition-form" class="mform"
+          data-hasselections="{{#hasselections}}1{{/hasselections}}{{^hasselections}}0{{/hasselections}}">
+        <input type="hidden" name="sesskey" value="{{sesskey}}">
+        <input type="hidden" name="condition[id]" value="{{conditionid}}">
+
+        {{! Step 1: the condition }}
+        <div class="card mb-3">
+            <div class="card-body">
+                <h4 class="card-title h5">{{#str}}step1_heading, local_course_access{{/str}}</h4>
+
+                <div class="form-group mb-3">
+                    <label for="lcc-name" class="form-label fw-bold">
+                        {{#str}}conditionalname, local_course_access{{/str}} <span class="text-danger">*</span>
+                    </label>
+                    <input type="text" class="form-control" id="lcc-name" name="condition[name]"
+                           value="{{conditionname}}" required
+                           placeholder="{{#str}}conditionalname_placeholder, local_course_access{{/str}}">
+                    <small class="form-text text-muted">{{#str}}conditionalname_help, local_course_access{{/str}}</small>
+                </div>
+
+                <div class="form-group mb-0">
+                    <label for="lcc-desc" class="form-label fw-bold">
+                        {{#str}}conditionaldescription, local_course_access{{/str}}
+                        <span class="text-muted fw-normal">{{#str}}optionallabel, local_course_access{{/str}}</span>
+                    </label>
+                    <textarea class="form-control" id="lcc-desc" name="condition[description]" rows="2"
+                              placeholder="{{#str}}conditionaldescription_placeholder, local_course_access{{/str}}">{{conditiondescription}}</textarea>
+                </div>
+            </div>
+        </div>
+
+        {{! Step 2: the options }}
+        <div class="card mb-3">
+            <div class="card-body">
+                <h4 class="card-title h5">{{#str}}step2_heading, local_course_access{{/str}}</h4>
+                <p class="text-muted mb-1">{{#str}}optionsintro, local_course_access{{/str}}</p>
+                <small class="form-text text-muted d-block mb-3">{{#str}}optionvalue_help, local_course_access{{/str}}</small>
+
+                <div id="lcc-options">
+                    {{#options}}
+                        {{> local_course_access/option_row }}
+                    {{/options}}
+                </div>
+
+                <button type="button" class="btn btn-secondary btn-sm mt-2" id="lcc-add-option">
+                    <i class="fa fa-plus" aria-hidden="true"></i> {{#str}}addoption, local_course_access{{/str}}
+                </button>
+            </div>
+        </div>
+
+        {{! Condition state }}
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <div class="form-check form-switch mb-0">
+                        <input type="checkbox" class="form-check-input" role="switch" id="lcc-enabled"
+                               name="condition[enabled]" value="1" {{#enabled}}checked{{/enabled}}>
+                        <label class="form-check-label fw-bold" for="lcc-enabled">
+                            {{#str}}conditionactive, local_course_access{{/str}}
+                        </label>
+                    </div>
+                    <span id="lcc-state-badge"
+                          class="badge {{#enabled}}bg-success{{/enabled}}{{^enabled}}bg-secondary{{/enabled}}">
+                        {{#enabled}}{{#str}}statusactive, local_course_access{{/str}}{{/enabled}}{{^enabled}}{{#str}}statuspaused, local_course_access{{/str}}{{/enabled}}
+                    </span>
+                </div>
+                <small class="form-text text-muted">{{#str}}conditionactive_help, local_course_access{{/str}}</small>
+            </div>
+        </div>
+
+        {{! Advanced options (progressive disclosure) }}
+        <details class="mb-3 lcc-advanced">
+            <summary class="fw-bold mb-2">{{#str}}advancedoptions, local_course_access{{/str}}</summary>
+            <div class="card">
+                <div class="card-body">
+                    {{! Allow students to change their selection after first choosing }}
+                    <div class="form-group mb-3">
+                        <div class="form-check form-switch">
+                            <input type="checkbox" class="form-check-input" role="switch" id="lcc-allowchange"
+                                   name="condition[allowchange]" value="1" {{#allowchange}}checked{{/allowchange}}>
+                            <label class="form-check-label fw-bold" for="lcc-allowchange">
+                                {{#str}}allowchange, local_course_access{{/str}}
+                            </label>
+                        </div>
+                        <small class="form-text text-muted">{{#str}}allowchange_help, local_course_access{{/str}}</small>
+                    </div>
+
+                    <hr>
+
+                    <div class="form-group mb-0">
+                        <label for="lcc-customid" class="form-label">{{#str}}customid, local_course_access{{/str}}</label>
+                        <input type="text" class="form-control" id="lcc-customid" name="condition[custom_id]"
+                               value="{{customid}}" placeholder="{{customiddefault}}"
+                               {{#customid_locked}}readonly{{/customid_locked}}>
+                        <small class="form-text text-muted d-block">{{#str}}customid_help, local_course_access{{/str}}</small>
+                        {{#customid_locked}}
+                        <small class="form-text text-info d-block mt-1">
+                            <i class="fa fa-lock" aria-hidden="true"></i> {{#str}}customid_locked, local_course_access{{/str}}
+                        </small>
+                        {{/customid_locked}}
+                        {{^customid_locked}}
+                        <small class="form-text text-warning d-block mt-1">{{#str}}migrationwarning, local_course_access{{/str}}</small>
+                        {{/customid_locked}}
+                    </div>
+                </div>
+            </div>
+        </details>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">{{#str}}savechanges{{/str}}</button>
+            <a href="{{courseurl}}" class="btn btn-secondary">{{#str}}backtocourse, local_course_access{{/str}}</a>
+        </div>
+    </form>
+
+    {{! What's next panel (only when a condition is saved) }}
+    {{#hascondition}}
+    <div class="card mt-4 border-success lcc-nextsteps">
+        <div class="card-body">
+            <h4 class="card-title h5 text-success">{{#str}}nextsteps_heading, local_course_access{{/str}}</h4>
+            {{#ispaused}}
+            <div class="alert alert-secondary py-2">
+                <i class="fa fa-pause-circle" aria-hidden="true"></i> {{#str}}nextsteps_paused, local_course_access{{/str}}
+            </div>
+            {{/ispaused}}
+            <p>{{#str}}nextsteps_intro, local_course_access{{/str}}</p>
+            <p class="mb-2">
+                <strong>{{#str}}nextsteps_field, local_course_access{{/str}}:</strong>
+                {{fielddisplayname}} <code class="ms-1">{{fieldshortname}}</code>
+            </p>
+            <ol>
+                <li>{{#str}}nextsteps_step1, local_course_access{{/str}}</li>
+                <li>{{#str}}nextsteps_step2, local_course_access{{/str}}</li>
+                <li>{{nextstep3text}}</li>
+            </ol>
+            <p class="mb-1"><strong>{{#str}}nextsteps_valuestable, local_course_access{{/str}}</strong></p>
+            <table class="table table-sm w-auto">
+                <thead>
+                    <tr>
+                        <th scope="col">{{#str}}optionname, local_course_access{{/str}}</th>
+                        <th scope="col">{{#str}}optionvalue, local_course_access{{/str}}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#options}}
+                    <tr>
+                        <td>{{name}}</td>
+                        <td><code>{{value}}</code></td>
+                    </tr>
+                    {{/options}}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {{/hascondition}}
+</div>

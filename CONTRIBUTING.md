@@ -48,8 +48,8 @@ Las sugerencias de nuevas funcionalidades son bienvenidas. Abre un issue describ
 Este plugin sigue los [Moodle Coding Standards](https://moodledev.io/general/development/policies/codingstyle):
 
 - **Indentación**: 4 espacios (no tabs)
-- **Nombres de funciones**: `snake_case` con prefijo `local_course_conditions_`
-- **Nombres de clases**: `PascalCase` en namespace `local_course_conditions`
+- **Nombres de funciones**: `snake_case` con prefijo `local_course_access_`
+- **Nombres de clases**: `PascalCase` en namespace `local_course_access`
 - **Comentarios**: PHPDoc para todas las funciones públicas
 - **Headers**: Licencia GPL en todos los archivos PHP
 
@@ -66,7 +66,7 @@ Este plugin sigue los [Moodle Coding Standards](https://moodledev.io/general/dev
  * @param int $courseid Course ID
  * @return bool True on success, false otherwise
  */
-function local_course_conditions_example_function($userid, $courseid) {
+function local_course_access_example_function($userid, $courseid) {
     global $DB;
     
     // Implementation here
@@ -76,7 +76,7 @@ function local_course_conditions_example_function($userid, $courseid) {
 
 ### Base de Datos
 
-- **Prefijo de tablas**: `local_course_conditions_`
+- **Prefijo de tablas**: `local_course_access_`
 - **Nombres de columnas**: `lowercase` con guiones bajos
 - **Timestamps**: Siempre incluir `timecreated` y `timemodified`
 - **Índices**: Agregar índices a columnas frecuentemente consultadas
@@ -91,7 +91,7 @@ function local_course_conditions_example_function($userid, $courseid) {
 
 ### Language Strings
 
-- **Archivo**: `lang/[idioma]/local_course_conditions.php`
+- **Archivo**: `lang/[idioma]/local_course_access.php`
 - **Formato**: `$string['key'] = 'Value';`
 - **Naming**: Descriptivo y consistente
 - **Ambos idiomas**: Siempre actualizar `en` y `es`
@@ -132,8 +132,8 @@ Antes de hacer PR, prueba:
 
 ## 📞 Contacto
 
-- **Issues**: [GitHub Issues](https://github.com/rurak-ec/moodle-course_conditions/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/rurak-ec/moodle-course_conditions/discussions)
+- **Issues**: [GitHub Issues](https://github.com/rurak-ec/moodle-course_access/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/rurak-ec/moodle-course_access/discussions)
 
 ## 📄 Licencia
 
