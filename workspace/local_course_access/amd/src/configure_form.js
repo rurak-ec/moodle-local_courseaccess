@@ -147,7 +147,7 @@ const countValidOptions = () => {
 /**
  * Initialise the configure-form behaviour.
  */
-export const init = () => {
+export const init = async() => {
     const container = getContainer();
     if (!container) {
         return;
@@ -162,80 +162,85 @@ export const init = () => {
     const hasSelections = !!form && form.getAttribute('data-hasselections') === '1';
     let confirmed = false;
 
-    getStrings([
-        {key: 'statusactive', component: 'local_course_access'},
-        {key: 'statuspaused', component: 'local_course_access'},
-        {key: 'activationgate', component: 'local_course_access'},
-        {key: 'confirm_reactivate_title', component: 'local_course_access'},
-        {key: 'confirm_reactivate_body', component: 'local_course_access'},
-        {key: 'confirm_reactivate_yes', component: 'local_course_access'},
-    ]).then((s) => {
-        const str = {active: s[0], paused: s[1], gate: s[2], ctitle: s[3], cbody: s[4], cyes: s[5]};
+    let s;
+    try {
+        s = await getStrings([
+            {key: 'statusactive', component: 'local_course_access'},
+            {key: 'statuspaused', component: 'local_course_access'},
+            {key: 'activationgate', component: 'local_course_access'},
+            {key: 'confirm_reactivate_title', component: 'local_course_access'},
+            {key: 'confirm_reactivate_body', component: 'local_course_access'},
+            {key: 'confirm_reactivate_yes', component: 'local_course_access'},
+        ]);
+    } catch (e) {
+        Notification.exception(e);
+        return;
+    }
+    const str = {active: s[0], paused: s[1], gate: s[2], ctitle: s[3], cbody: s[4], cyes: s[5]};
 
-        // Reflect the current state in the badge.
-        const updateBadge = () => {
-            if (!badge || !sw) {
+    // Reflect the current state in the badge.
+    const updateBadge = () => {
+        if (!badge || !sw) {
+            return;
+        }
+        badge.textContent = sw.checked ? str.active : str.paused;
+        badge.className = 'badge ' + (sw.checked ? 'bg-success' : 'bg-secondary');
+    };
+
+    // Disable activation until the minimum (name + >=2 valid options) exists.
+    const updateGate = () => {
+        if (sw) {
+            const ok = nameEl && nameEl.value.trim() !== '' && countValidOptions() >= MIN_OPTIONS;
+            if (!ok) {
+                sw.checked = false;
+                sw.disabled = true;
+                sw.title = str.gate;
+            } else {
+                sw.disabled = false;
+                sw.title = '';
+            }
+        }
+        updateBadge();
+    };
+
+    // Delegated events so dynamically-added rows work without rebinding.
+    container.addEventListener('input', (e) => {
+        handleInput(e);
+        updateGate();
+    });
+    container.addEventListener('click', (e) => {
+        handleClick(e);
+        updateGate();
+    });
+    if (addBtn) {
+        addBtn.addEventListener('click', async(e) => {
+            e.preventDefault();
+            await addOption();
+            updateGate();
+        });
+    }
+    if (nameEl) {
+        nameEl.addEventListener('input', updateGate);
+    }
+    if (sw) {
+        sw.addEventListener('change', updateBadge);
+    }
+
+    // Re-activating a paused condition re-prompts every student: confirm first.
+    if (form) {
+        form.addEventListener('submit', (e) => {
+            if (confirmed || !sw) {
                 return;
             }
-            badge.textContent = sw.checked ? str.active : str.paused;
-            badge.className = 'badge ' + (sw.checked ? 'bg-success' : 'bg-secondary');
-        };
-
-        // Disable activation until the minimum (name + >=2 valid options) exists.
-        const updateGate = () => {
-            if (sw) {
-                const ok = nameEl && nameEl.value.trim() !== '' && countValidOptions() >= MIN_OPTIONS;
-                if (!ok) {
-                    sw.checked = false;
-                    sw.disabled = true;
-                    sw.title = str.gate;
-                } else {
-                    sw.disabled = false;
-                    sw.title = '';
-                }
-            }
-            updateBadge();
-        };
-
-        // Delegated events so dynamically-added rows work without rebinding.
-        container.addEventListener('input', (e) => {
-            handleInput(e);
-            updateGate();
-        });
-        container.addEventListener('click', (e) => {
-            handleClick(e);
-            updateGate();
-        });
-        if (addBtn) {
-            addBtn.addEventListener('click', (e) => {
+            if (sw.checked && !initialEnabled && hasSelections) {
                 e.preventDefault();
-                addOption().then(updateGate).catch(Notification.exception);
-            });
-        }
-        if (nameEl) {
-            nameEl.addEventListener('input', updateGate);
-        }
-        if (sw) {
-            sw.addEventListener('change', updateBadge);
-        }
+                Notification.saveCancel(str.ctitle, str.cbody, str.cyes, () => {
+                    confirmed = true;
+                    form.submit();
+                });
+            }
+        });
+    }
 
-        // Re-activating a paused condition re-prompts every student: confirm first.
-        if (form) {
-            form.addEventListener('submit', (e) => {
-                if (confirmed || !sw) {
-                    return;
-                }
-                if (sw.checked && !initialEnabled && hasSelections) {
-                    e.preventDefault();
-                    Notification.saveCancel(str.ctitle, str.cbody, str.cyes, () => {
-                        confirmed = true;
-                        form.submit();
-                    });
-                }
-            });
-        }
-
-        updateGate();
-        return s;
-    }).catch(Notification.exception);
+    updateGate();
 };
