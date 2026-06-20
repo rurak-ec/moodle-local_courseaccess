@@ -26,7 +26,6 @@
  * Behat data generator: exposes the plugin's conditions to "the following ... exist".
  */
 class behat_local_course_access_generator extends behat_generator_base {
-
     /**
      * Entities this plugin can create from a Behat "Given the following ... exist" step.
      *
