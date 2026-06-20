@@ -26,7 +26,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import {render} from 'core/templates';
+import Templates from 'core/templates';
 import {getString} from 'core/str';
 import Config from 'core/config';
 
@@ -48,7 +48,7 @@ export const init = async(data) => {
         return;
     }
 
-    const html = await render('local_course_access/condition_modal', data);
+    const html = await Templates.render('local_course_access/condition_modal', data);
     const wrapper = document.createElement('div');
     wrapper.innerHTML = html.trim();
     const overlay = wrapper.firstElementChild;
