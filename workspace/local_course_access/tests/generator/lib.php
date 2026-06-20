@@ -27,21 +27,6 @@
  */
 class local_course_access_generator extends component_generator_base {
     /**
-     * Behat-creatable entities for this plugin.
-     *
-     * @return array
-     */
-    public function get_creatable_entities(): array {
-        return [
-            'conditions' => [
-                'datagenerator' => 'condition',
-                'required' => ['course'],
-                'switchids' => ['course' => 'courseid'],
-            ],
-        ];
-    }
-
-    /**
      * Create a condition with its options on a course.
      *
      * The "options" field is a comma-separated list of "Display:value" pairs
