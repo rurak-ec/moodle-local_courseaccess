@@ -5,6 +5,14 @@
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
  * Capability definitions for Course Conditionals plugin
@@ -17,7 +25,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $capabilities = [
-    // Manage global conditionals (admin level)
+    // Manage global conditionals (admin level).
     'local/course_access:manageconditionals' => [
         'riskbitmask' => RISK_CONFIG,
         'captype' => 'write',
@@ -27,7 +35,7 @@ $capabilities = [
         ],
     ],
 
-    // Configure conditionals in a course (teacher level)
+    // Configure conditionals in a course (teacher level).
     'local/course_access:configure' => [
         'riskbitmask' => RISK_SPAM,
         'captype' => 'write',
@@ -38,7 +46,7 @@ $capabilities = [
         ],
     ],
 
-    // View reports and selections
+    // View reports and selections.
     'local/course_access:viewreports' => [
         'captype' => 'read',
         'contextlevel' => CONTEXT_COURSE,

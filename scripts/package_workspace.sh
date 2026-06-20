@@ -16,29 +16,9 @@ fi
 
 mkdir -p "${BUILD_DIR}"
 
-# ---------------------------------------------------------------------------
-# Keep AMD build/ in sync with src/.
-# Moodle serves amd/build/*.min.js, NOT amd/src/*.js. These modules are
-# authored as legacy AMD (define([...], function(){})), so no transpilation is
-# needed and build is a verbatim copy of src. Re-mirroring here guarantees the
-# packaged build can never be a stale copy of the source.
-# NOTE: if a module is ever rewritten as a native ES6 module (import/export),
-# this verbatim copy is NOT enough -- it must be compiled with `grunt amd`.
-# ---------------------------------------------------------------------------
-AMD_SRC_DIR="${SRC_DIR}/amd/src"
-AMD_BUILD_DIR="${SRC_DIR}/amd/build"
-if [[ -d "${AMD_SRC_DIR}" ]]; then
-  mkdir -p "${AMD_BUILD_DIR}"
-  for srcfile in "${AMD_SRC_DIR}"/*.js; do
-    [[ -e "${srcfile}" ]] || continue
-    base="$(basename "${srcfile}" .js)"
-    target="${AMD_BUILD_DIR}/${base}.min.js"
-    if [[ ! -f "${target}" ]] || ! cmp -s "${srcfile}" "${target}"; then
-      echo "Syncing AMD build: ${base}.js -> ${base}.min.js"
-      cp -a "${srcfile}" "${target}"
-    fi
-  done
-fi
+# NOTE: The AMD modules are ES6 (import/export) and are compiled to amd/build/
+# with `grunt amd` (rollup). Do NOT copy amd/src over amd/build here -- the
+# committed amd/build/*.min.js is the rollup output and must ship as-is.
 
 cleanup() {
   rm -rf "${STAGE_DIR}"

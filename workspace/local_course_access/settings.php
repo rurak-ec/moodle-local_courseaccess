@@ -5,6 +5,14 @@
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
  * Settings for Course Conditionals plugin
@@ -17,24 +25,15 @@
 defined('MOODLE_INTERNAL') || die();
 
 if ($hassiteconfig) {
-    // Create the category for the plugin
-    $ADMIN->add('localplugins', new admin_category('local_course_access',
-        get_string('pluginname', 'local_course_access')));
-
-    // Add link to manage conditionals
-    $ADMIN->add('local_course_access', new admin_externalpage(
-        'local_course_access_conditionals',
-        get_string('manageconditionals', 'local_course_access'),
-        new moodle_url('/local/course_access/manage_conditionals.php'),
-        'local/course_access:manageconditionals'
-    ));
-
-    // Add empty settings page (required by Moodle)
-    $settings = new admin_settingpage('local_course_access_settings',
-        get_string('settings', 'local_course_access'));
+    // The plugin is configured per course (via the course navigation), so there are.
+    // No global settings. Expose a short description page so the plugin is.
+    // Discoverable under Site administration > Plugins > Local plugins.
+    $settings = new admin_settingpage(
+        'local_course_access_settings',
+        get_string('pluginname', 'local_course_access')
+    );
 
     if ($ADMIN->fulltree) {
-        // Add description
         $settings->add(new admin_setting_heading(
             'local_course_access_desc',
             '',
@@ -42,5 +41,5 @@ if ($hassiteconfig) {
         ));
     }
 
-    $ADMIN->add('local_course_access', $settings);
+    $ADMIN->add('localplugins', $settings);
 }

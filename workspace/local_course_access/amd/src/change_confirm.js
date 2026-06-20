@@ -23,35 +23,37 @@
  * @copyright  2025 Rurak
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-define(['core/notification', 'core/str'], function(Notification, Str) {
 
-    return {
-        init: function() {
-            var form = document.getElementById('change-selection-form');
-            if (!form) {
-                return;
-            }
+import Notification from 'core/notification';
+import {getStrings} from 'core/str';
 
-            var confirmed = false;
+/**
+ * Initialise the change-selection confirmation.
+ */
+export const init = () => {
+    const form = document.getElementById('change-selection-form');
+    if (!form) {
+        return;
+    }
 
-            form.addEventListener('submit', function(e) {
-                if (confirmed) {
-                    return;
-                }
-                e.preventDefault();
+    let confirmed = false;
 
-                Str.get_strings([
-                    {key: 'confirm_change_title', component: 'local_course_access'},
-                    {key: 'confirm_change_body', component: 'local_course_access'},
-                    {key: 'confirm_change_yes', component: 'local_course_access'}
-                ]).then(function(s) {
-                    Notification.saveCancel(s[0], s[1], s[2], function() {
-                        confirmed = true;
-                        form.submit();
-                    });
-                    return s;
-                }).catch(Notification.exception);
-            });
+    form.addEventListener('submit', (e) => {
+        if (confirmed) {
+            return;
         }
-    };
-});
+        e.preventDefault();
+
+        getStrings([
+            {key: 'confirm_change_title', component: 'local_course_access'},
+            {key: 'confirm_change_body', component: 'local_course_access'},
+            {key: 'confirm_change_yes', component: 'local_course_access'},
+        ]).then((s) => {
+            Notification.saveCancel(s[0], s[1], s[2], () => {
+                confirmed = true;
+                form.submit();
+            });
+            return s;
+        }).catch(Notification.exception);
+    });
+};

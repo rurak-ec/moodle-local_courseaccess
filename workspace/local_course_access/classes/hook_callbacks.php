@@ -39,7 +39,6 @@ require_once(__DIR__ . '/../lib.php');
  * Hook callback container.
  */
 class hook_callbacks {
-
     /**
      * Inject the blocking condition modal on course-view pages.
      *

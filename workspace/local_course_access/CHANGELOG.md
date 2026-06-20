@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-06-20
+
+Release prepared for the Moodle plugins directory (Moodle 5.1–5.2; CI also tracks 5.3-dev).
+
+### Fixed
+- **Privacy provider rewritten.** It previously queried a non-existent table
+  (`local_course_access_user`); it now correctly describes, exports and deletes the data in the
+  selections and history tables.
+- **Removed all hardcoded Spanish from the code** (the student modal, the profile-field category and
+  the configure error messages now use language strings). The student modal is rendered from a
+  Mustache template, so option/condition text is escaped (fixes a potential XSS).
+- Removed a broken admin link to a non-existent `manage_conditionals.php` page.
+
+### Changed
+- **Renamed two tables to fit Moodle's 28-char limit**: `local_course_access_conditions` →
+  `local_course_access_cond` and `local_course_access_selections` → `local_course_access_sel`
+  (with an upgrade step that renames existing tables, preserving data).
+- **JavaScript rewritten as ES6 modules** built with grunt/rollup (no jQuery, no inline CSS, no
+  deprecated `Notification.alert`); the student gate is a template-rendered blocking overlay.
+- `version.php`: declared `$plugin->supported = [501, 502]`, completed the copyright.
+
+### Added
+- GitHub Actions CI (`moodle-plugin-ci`) across PHP 8.2–8.4 × Moodle 5.1/5.2 (PostgreSQL + MariaDB)
+  plus a non-blocking `main` (5.3-dev) run.
+- PHPUnit tests for the library and the privacy provider, and a Behat feature for the selection gate.
+- English-only language pack (the Spanish translation moved to `/translations` for AMOS).
+
 ## [1.7.16] - 2025-01-25
 
 ### Added

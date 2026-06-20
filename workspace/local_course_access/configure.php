@@ -5,6 +5,14 @@
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
  * Course conditions configuration page
@@ -29,84 +37,87 @@ $PAGE->set_context($context);
 $PAGE->set_title(get_string('configureconditions', 'local_course_access'));
 $PAGE->set_heading($course->fullname);
 
-// Handle Form Submission
-if ($data = data_submitted() && confirm_sesskey()) {
+// Handle Form Submission.
+if (data_submitted() && confirm_sesskey()) {
     try {
-        // Get condition data from $_POST directly
+        // The submitted condition arrives as a nested array (sesskey-protected);.
+        // Every field below is cleaned with clean_param before use.
         if (!isset($_POST['condition']) || !is_array($_POST['condition'])) {
-            throw new moodle_exception('error', 'local_course_access', '', 'No se recibieron datos de la condición');
+            throw new moodle_exception('error_no_condition_data', 'local_course_access');
         }
 
-        $raw_condition = $_POST['condition'];
+        $rawcondition = $_POST['condition'];
 
-        // Clean and validate condition data
-        $condition_id = isset($raw_condition['id']) && is_numeric($raw_condition['id']) ? intval($raw_condition['id']) : null;
-        $condition_name = isset($raw_condition['name']) ? clean_param($raw_condition['name'], PARAM_TEXT) : '';
-        $condition_desc = isset($raw_condition['description']) ? clean_param($raw_condition['description'], PARAM_TEXT) : '';
-        $custom_id = isset($raw_condition['custom_id']) ? clean_param($raw_condition['custom_id'], PARAM_TEXT) : '';
-        $enabled = isset($raw_condition['enabled']) ? 1 : 0;
-        $allowchange = isset($raw_condition['allowchange']) ? 1 : 0;
+        // Clean and validate condition data.
+        $conditionid = isset($rawcondition['id']) && is_numeric($rawcondition['id']) ? intval($rawcondition['id']) : null;
+        $conditionname = isset($rawcondition['name']) ? clean_param($rawcondition['name'], PARAM_TEXT) : '';
+        $conditiondesc = isset($rawcondition['description']) ? clean_param($rawcondition['description'], PARAM_TEXT) : '';
+        $customid = isset($rawcondition['custom_id']) ? clean_param($rawcondition['custom_id'], PARAM_TEXT) : '';
+        $enabled = isset($rawcondition['enabled']) ? 1 : 0;
+        $allowchange = isset($rawcondition['allowchange']) ? 1 : 0;
 
-        if (empty($condition_name)) {
-            throw new moodle_exception('error', 'local_course_access', '', 'El nombre de la condición es requerido');
+        if (empty($conditionname)) {
+            throw new moodle_exception('error_condition_name_required', 'local_course_access');
         }
 
         // Validate custom_id (must not be empty): default to the course shortname.
-        if (empty($custom_id)) {
-            $custom_id = local_course_access_default_customid($course);
+        if (empty($customid)) {
+            $customid = local_course_access_default_customid($course);
         }
 
-        // Structure for lib function (expects array of conditions)
-        $condition_data = [
-            'id' => $condition_id,
-            'name' => $condition_name,
-            'description' => $condition_desc,
-            'custom_id' => $custom_id,
+        // Structure for lib function (expects array of conditions).
+        $conditiondata = [
+            'id' => $conditionid,
+            'name' => $conditionname,
+            'description' => $conditiondesc,
+            'custom_id' => $customid,
             'enabled' => $enabled,
             'allowchange' => $allowchange,
             'sortorder' => 0,
-            'options' => []
+            'options' => [],
         ];
 
-        // Process options
-        if (isset($raw_condition['options']) && is_array($raw_condition['options'])) {
-            foreach ($raw_condition['options'] as $oid => $odata) {
+        // Process options.
+        if (isset($rawcondition['options']) && is_array($rawcondition['options'])) {
+            foreach ($rawcondition['options'] as $oid => $odata) {
                 if (!is_array($odata)) {
                     continue;
                 }
 
-                $option_id = isset($odata['id']) && is_numeric($odata['id']) ? intval($odata['id']) : null;
-                $option_name = isset($odata['name']) ? clean_param($odata['name'], PARAM_TEXT) : '';
-                $option_value = isset($odata['value']) ? clean_param($odata['value'], PARAM_TEXT) : '';
+                $optionid = isset($odata['id']) && is_numeric($odata['id']) ? intval($odata['id']) : null;
+                $optionname = isset($odata['name']) ? clean_param($odata['name'], PARAM_TEXT) : '';
+                $optionvalue = isset($odata['value']) ? clean_param($odata['value'], PARAM_TEXT) : '';
 
-                if (empty($option_name) || empty($option_value)) {
-                    continue; // Skip empty options
+                if (empty($optionname) || empty($optionvalue)) {
+                    continue;  // Skip empty options.
                 }
 
-                $condition_data['options'][] = [
-                    'id' => $option_id,
-                    'name' => $option_name,
-                    'value' => $option_value,
-                    'sortorder' => intval($oid)
+                $conditiondata['options'][] = [
+                    'id' => $optionid,
+                    'name' => $optionname,
+                    'value' => $optionvalue,
+                    'sortorder' => intval($oid),
                 ];
             }
         }
 
-        // Validate: at least 2 options required
-        if (count($condition_data['options']) < 2) {
-            throw new moodle_exception('error', 'local_course_access', '', 'Se requieren al menos 2 opciones');
+        // Validate: at least 2 options required.
+        if (count($conditiondata['options']) < 2) {
+            throw new moodle_exception('error_min2options', 'local_course_access');
         }
 
         // Capture pre-save state to detect an activation transition (paused -> active).
         $wasactive = false;
-        if ($condition_id) {
-            $pre = $DB->get_record('local_course_access_conditions',
-                ['id' => $condition_id, 'courseid' => $course->id]);
+        if ($conditionid) {
+            $pre = $DB->get_record(
+                'local_course_access_cond',
+                ['id' => $conditionid, 'courseid' => $course->id]
+            );
             $wasactive = $pre ? !empty($pre->enabled) : false;
         }
 
-        // Pass as array of 1
-        local_course_access_save_conditions($course->id, [$condition_data]);
+        // Pass as array of 1.
+        local_course_access_save_conditions($course->id, [$conditiondata]);
 
         // Context-aware feedback.
         $saved = local_course_access_get_conditions_for_course($course->id);
@@ -126,21 +137,20 @@ if ($data = data_submitted() && confirm_sesskey()) {
             \core\notification::success(get_string('changessaved'));
         }
         redirect($PAGE->url);
-
     } catch (Exception $e) {
         \core\notification::error($e->getMessage());
     }
 }
 
-// Get existing conditions (take the first one if exists)
+// Get existing conditions (take the first one if exists).
 $conditions = local_course_access_get_conditions_for_course($course->id);
-$current_condition = !empty($conditions) ? reset($conditions) : null;
+$currentcondition = !empty($conditions) ? reset($conditions) : null;
 
 // Build the option rows for the template: existing options, or 2 empty rows for a new condition.
 $options = [];
-if ($current_condition && !empty($current_condition->options)) {
+if ($currentcondition && !empty($currentcondition->options)) {
     $index = 0;
-    foreach ($current_condition->options as $opt) {
+    foreach ($currentcondition->options as $opt) {
         $options[] = [
             'index' => $index++,
             'id' => $opt->id,
@@ -159,38 +169,40 @@ $templatecontext = [
     'courseurl' => (new moodle_url('/course/view.php', ['id' => $course->id]))->out(false),
     'sesskey' => sesskey(),
     'courseid' => $course->id,
-    'conditionid' => $current_condition ? $current_condition->id : '',
-    'conditionname' => $current_condition ? $current_condition->name : '',
-    'conditiondescription' => $current_condition ? $current_condition->description : '',
-    'customid' => $current_condition ? $current_condition->custom_id : local_course_access_default_customid($course),
+    'conditionid' => $currentcondition ? $currentcondition->id : '',
+    'conditionname' => $currentcondition ? $currentcondition->name : '',
+    'conditiondescription' => $currentcondition ? $currentcondition->description : '',
+    'customid' => $currentcondition ? $currentcondition->custom_id : local_course_access_default_customid($course),
     'customiddefault' => local_course_access_default_customid($course),
-    // New conditions start PAUSED: the teacher configures first, then activates
-    // (activating prompts every student to choose).
-    'enabled' => $current_condition ? !empty($current_condition->enabled) : false,
+    // New conditions start PAUSED: the teacher configures first, then activates.
+    // (Activating prompts every student to choose).
+    'enabled' => $currentcondition ? !empty($currentcondition->enabled) : false,
     'options' => $options,
-    'hascondition' => (bool)$current_condition,
+    'hascondition' => (bool)$currentcondition,
     // Whether students may change their selection after first choosing (default off).
-    'allowchange' => $current_condition ? !empty($current_condition->allowchange) : false,
-    // custom_id becomes read-only once the field is in use (changing it would break restrictions).
-    'customid_locked' => $current_condition
-        ? local_course_access_customid_is_locked($course->id, $current_condition->id) : false,
+    'allowchange' => $currentcondition ? !empty($currentcondition->allowchange) : false,
+    // Custom_id becomes read-only once the field is in use (changing it would break restrictions).
+    'customid_locked' => $currentcondition
+        ? local_course_access_customid_is_locked($course->id, $currentcondition->id) : false,
     // Whether any student already has a selection (drives the re-activation confirm in JS).
-    'hasselections' => $current_condition
-        ? $DB->record_exists('local_course_access_selections', ['conditionid' => $current_condition->id]) : false,
+    'hasselections' => $currentcondition
+        ? $DB->record_exists('local_course_access_sel', ['conditionid' => $currentcondition->id]) : false,
 ];
 
 // Data for the post-save "what's next" panel.
-if ($current_condition) {
+if ($currentcondition) {
     $templatecontext['fielddisplayname'] = $course->shortname;
     $templatecontext['fieldshortname'] = local_course_access_get_field_shortname(
         $course->id,
-        $current_condition->id,
-        $current_condition->custom_id
+        $currentcondition->id,
+        $currentcondition->custom_id
     );
     $templatecontext['nextstep3text'] = get_string('nextsteps_step3', 'local_course_access', $course->shortname);
     $templatecontext['restrictioncount'] = local_course_access_count_field_restrictions(
-        $course->id, $current_condition->id);
-    $templatecontext['ispaused'] = empty($current_condition->enabled);
+        $course->id,
+        $currentcondition->id
+    );
+    $templatecontext['ispaused'] = empty($currentcondition->enabled);
 }
 
 // Load the interactive behaviour (add/remove options, value autocomplete).

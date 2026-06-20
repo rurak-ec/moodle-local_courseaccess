@@ -25,8 +25,6 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Execute upgrade steps.
  *
@@ -39,12 +37,29 @@ function xmldb_local_course_access_upgrade($oldversion) {
 
     if ($oldversion < 2025012529) {
         // Add the per-condition "allow students to change their selection" flag.
+        // Note: at this point the table still had its original (pre-rename) name.
         $table = new xmldb_table('local_course_access_conditions');
         $field = new xmldb_field('allowchange', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'enabled');
         if (!$dbman->field_exists($table, $field)) {
             $dbman->add_field($table, $field);
         }
         upgrade_plugin_savepoint(true, 2025012529, 'local', 'course_access');
+    }
+
+    if ($oldversion < 2026062000) {
+        // Shorten table names to <= 28 characters (Moodle's table-name limit)
+        // for the plugins-directory submission.
+        $renames = [
+            'local_course_access_conditions' => 'local_course_access_cond',
+            'local_course_access_selections' => 'local_course_access_sel',
+        ];
+        foreach ($renames as $oldname => $newname) {
+            $oldtable = new xmldb_table($oldname);
+            if ($dbman->table_exists($oldtable) && !$dbman->table_exists(new xmldb_table($newname))) {
+                $dbman->rename_table($oldtable, $newname);
+            }
+        }
+        upgrade_plugin_savepoint(true, 2026062000, 'local', 'course_access');
     }
 
     return true;

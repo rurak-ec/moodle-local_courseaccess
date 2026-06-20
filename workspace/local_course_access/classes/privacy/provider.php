@@ -5,12 +5,20 @@
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Privacy provider for Course Access plugin
+ * Privacy Subsystem implementation for local_course_access.
  *
  * @package    local_course_access
- * @copyright  2025
+ * @copyright  2025 Rurak
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -20,43 +28,48 @@ use core_privacy\local\metadata\collection;
 use core_privacy\local\request\approved_contextlist;
 use core_privacy\local\request\approved_userlist;
 use core_privacy\local\request\contextlist;
+use core_privacy\local\request\transform;
 use core_privacy\local\request\userlist;
 use core_privacy\local\request\writer;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
- * Privacy provider implementation for local_course_access
+ * Privacy provider: the plugin stores each user's course condition selection and a change history.
  */
 class provider implements
     \core_privacy\local\metadata\provider,
-    \core_privacy\local\request\plugin\provider,
-    \core_privacy\local\request\core_userlist_provider {
-
+    \core_privacy\local\request\core_userlist_provider,
+    \core_privacy\local\request\plugin\provider {
     /**
-     * Get metadata about data stored by this plugin
+     * Describe the personal data stored by this plugin.
      *
      * @param collection $collection
      * @return collection
      */
     public static function get_metadata(collection $collection): collection {
-        $collection->add_database_table(
-            'local_course_access_user',
-            [
-                'userid' => 'privacy:metadata:local_course_access_user:userid',
-                'courseid' => 'privacy:metadata:local_course_access_user:courseid',
-                'optionid' => 'privacy:metadata:local_course_access_user:optionid',
-                'uniquecode' => 'privacy:metadata:local_course_access_user:uniquecode',
-                'timecreated' => 'privacy:metadata:local_course_access_user:timecreated',
-            ],
-            'privacy:metadata:local_course_access_user'
-        );
+        $collection->add_database_table('local_course_access_sel', [
+            'userid' => 'privacy:metadata:local_course_access_sel:userid',
+            'courseid' => 'privacy:metadata:local_course_access_sel:courseid',
+            'conditionid' => 'privacy:metadata:local_course_access_sel:conditionid',
+            'optionid' => 'privacy:metadata:local_course_access_sel:optionid',
+            'timecreated' => 'privacy:metadata:local_course_access_sel:timecreated',
+            'timemodified' => 'privacy:metadata:local_course_access_sel:timemodified',
+        ], 'privacy:metadata:local_course_access_sel');
+
+        $collection->add_database_table('local_course_access_history', [
+            'userid' => 'privacy:metadata:local_course_access_history:userid',
+            'courseid' => 'privacy:metadata:local_course_access_history:courseid',
+            'conditionid' => 'privacy:metadata:local_course_access_history:conditionid',
+            'old_optionid' => 'privacy:metadata:local_course_access_history:old_optionid',
+            'new_optionid' => 'privacy:metadata:local_course_access_history:new_optionid',
+            'changed_by' => 'privacy:metadata:local_course_access_history:changed_by',
+            'timecreated' => 'privacy:metadata:local_course_access_history:timecreated',
+        ], 'privacy:metadata:local_course_access_history');
 
         return $collection;
     }
 
     /**
-     * Get contexts for user ID
+     * Return the course contexts that hold data for the given user.
      *
      * @param int $userid
      * @return contextlist
@@ -64,28 +77,60 @@ class provider implements
     public static function get_contexts_for_userid(int $userid): contextlist {
         $contextlist = new contextlist();
 
-        $sql = "SELECT ctx.id
-                  FROM {context} ctx
-                  JOIN {course} c ON c.id = ctx.instanceid AND ctx.contextlevel = :contextlevel
-                  JOIN {local_course_access_user} lcu ON lcu.courseid = c.id
-                 WHERE lcu.userid = :userid";
+        $contextlist->add_from_sql(
+            "SELECT ctx.id
+               FROM {context} ctx
+               JOIN {local_course_access_sel} s ON s.courseid = ctx.instanceid
+              WHERE ctx.contextlevel = :contextlevel AND s.userid = :userid",
+            ['contextlevel' => CONTEXT_COURSE, 'userid' => $userid]
+        );
 
-        $params = [
-            'userid' => $userid,
-            'contextlevel' => CONTEXT_COURSE,
-        ];
-
-        $contextlist->add_from_sql($sql, $params);
+        $contextlist->add_from_sql(
+            "SELECT ctx.id
+               FROM {context} ctx
+               JOIN {local_course_access_history} h ON h.courseid = ctx.instanceid
+              WHERE ctx.contextlevel = :contextlevel AND (h.userid = :userid OR h.changed_by = :changedby)",
+            ['contextlevel' => CONTEXT_COURSE, 'userid' => $userid, 'changedby' => $userid]
+        );
 
         return $contextlist;
     }
 
     /**
-     * Export user data
+     * Return the users who have data within the given (course) context.
+     *
+     * @param userlist $userlist
+     */
+    public static function get_users_in_context(userlist $userlist): void {
+        $context = $userlist->get_context();
+        if (!$context instanceof \context_course) {
+            return;
+        }
+        $params = ['courseid' => $context->instanceid];
+
+        $userlist->add_from_sql(
+            'userid',
+            "SELECT userid FROM {local_course_access_sel} WHERE courseid = :courseid",
+            $params
+        );
+        $userlist->add_from_sql(
+            'userid',
+            "SELECT userid FROM {local_course_access_history} WHERE courseid = :courseid",
+            $params
+        );
+        $userlist->add_from_sql(
+            'changed_by',
+            "SELECT changed_by FROM {local_course_access_history} WHERE courseid = :courseid",
+            $params
+        );
+    }
+
+    /**
+     * Export all stored data for the approved contexts of the user.
      *
      * @param approved_contextlist $contextlist
      */
-    public static function export_user_data(approved_contextlist $contextlist) {
+    public static function export_user_data(approved_contextlist $contextlist): void {
         global $DB;
 
         if (empty($contextlist->count())) {
@@ -95,123 +140,142 @@ class provider implements
         $user = $contextlist->get_user();
 
         foreach ($contextlist->get_contexts() as $context) {
-            if ($context->contextlevel != CONTEXT_COURSE) {
+            if (!$context instanceof \context_course) {
                 continue;
             }
-
             $courseid = $context->instanceid;
 
-            $sql = "SELECT lcu.*, lco.name as careername, lco.code as careercode
-                      FROM {local_course_access_user} lcu
-                      JOIN {local_course_access_options} lco ON lco.id = lcu.optionid
-                     WHERE lcu.userid = :userid AND lcu.courseid = :courseid";
-
-            $params = ['userid' => $user->id, 'courseid' => $courseid];
-            $selection = $DB->get_record_sql($sql, $params);
-
-            if ($selection) {
-                $data = (object) [
-                    'career' => $selection->careername,
-                    'code' => $selection->careercode,
-                    'uniquecode' => $selection->uniquecode,
-                    'timecreated' => transform::datetime($selection->timecreated),
+            // Current selections.
+            $records = $DB->get_records_sql(
+                "SELECT s.id, c.name AS conditionname, o.name AS optionname, o.value AS optionvalue,
+                        s.timecreated, s.timemodified
+                   FROM {local_course_access_sel} s
+                   JOIN {local_course_access_cond} c ON c.id = s.conditionid
+                   JOIN {local_course_access_options} o ON o.id = s.optionid
+                  WHERE s.userid = :userid AND s.courseid = :courseid",
+                ['userid' => $user->id, 'courseid' => $courseid]
+            );
+            $selections = [];
+            foreach ($records as $r) {
+                $selections[] = [
+                    'condition' => $r->conditionname,
+                    'option' => $r->optionname,
+                    'value' => $r->optionvalue,
+                    'timecreated' => transform::datetime($r->timecreated),
+                    'timemodified' => transform::datetime($r->timemodified),
                 ];
-
+            }
+            if ($selections) {
                 writer::with_context($context)->export_data(
-                    [get_string('pluginname', 'local_course_access')],
-                    $data
+                    [get_string('pluginname', 'local_course_access'),
+                        get_string('privacy:selections', 'local_course_access')],
+                    (object) ['selections' => $selections]
+                );
+            }
+
+            // Change history (changes affecting the user, and changes the user made).
+            $records = $DB->get_records_sql(
+                "SELECT h.id, h.userid, h.changed_by, h.new_optionid, h.timecreated
+                   FROM {local_course_access_history} h
+                  WHERE h.courseid = :courseid AND (h.userid = :userid OR h.changed_by = :changedby)",
+                ['courseid' => $courseid, 'userid' => $user->id, 'changedby' => $user->id]
+            );
+            $history = [];
+            foreach ($records as $r) {
+                $history[] = [
+                    'newoption' => $DB->get_field('local_course_access_options', 'name', ['id' => $r->new_optionid]),
+                    'changedbyyou' => transform::yesno((int) $r->changed_by === (int) $user->id),
+                    'timecreated' => transform::datetime($r->timecreated),
+                ];
+            }
+            if ($history) {
+                writer::with_context($context)->export_data(
+                    [get_string('pluginname', 'local_course_access'),
+                        get_string('privacy:history', 'local_course_access')],
+                    (object) ['history' => $history]
                 );
             }
         }
     }
 
     /**
-     * Delete user data for context
+     * Delete all plugin data for all users in the given (course) context.
      *
      * @param \context $context
      */
-    public static function delete_data_for_all_users_in_context(\context $context) {
+    public static function delete_data_for_all_users_in_context(\context $context): void {
         global $DB;
-
-        if ($context->contextlevel != CONTEXT_COURSE) {
+        if (!$context instanceof \context_course) {
             return;
         }
-
-        $DB->delete_records('local_course_access_user', ['courseid' => $context->instanceid]);
+        $DB->delete_records('local_course_access_sel', ['courseid' => $context->instanceid]);
+        $DB->delete_records('local_course_access_history', ['courseid' => $context->instanceid]);
     }
 
     /**
-     * Delete user data
+     * Delete all plugin data for the user across the approved contexts.
      *
      * @param approved_contextlist $contextlist
      */
-    public static function delete_data_for_user(approved_contextlist $contextlist) {
+    public static function delete_data_for_user(approved_contextlist $contextlist): void {
         global $DB;
-
-        if (empty($contextlist->count())) {
-            return;
-        }
-
         $userid = $contextlist->get_user()->id;
 
         foreach ($contextlist->get_contexts() as $context) {
-            if ($context->contextlevel != CONTEXT_COURSE) {
+            if (!$context instanceof \context_course) {
                 continue;
             }
-
-            $DB->delete_records('local_course_access_user', [
-                'userid' => $userid,
-                'courseid' => $context->instanceid,
-            ]);
+            $courseid = $context->instanceid;
+            $DB->delete_records('local_course_access_sel', ['userid' => $userid, 'courseid' => $courseid]);
+            $DB->delete_records('local_course_access_history', ['userid' => $userid, 'courseid' => $courseid]);
+            // Anonymise this user as the actor on other people's history rows.
+            $DB->set_field_select(
+                'local_course_access_history',
+                'changed_by',
+                0,
+                'courseid = :courseid AND changed_by = :changedby AND userid <> :userid',
+                ['courseid' => $courseid, 'changedby' => $userid, 'userid' => $userid]
+            );
         }
     }
 
     /**
-     * Get users in context
-     *
-     * @param userlist $userlist
-     */
-    public static function get_users_in_context(userlist $userlist) {
-        $context = $userlist->get_context();
-
-        if ($context->contextlevel != CONTEXT_COURSE) {
-            return;
-        }
-
-        $sql = "SELECT userid
-                  FROM {local_course_access_user}
-                 WHERE courseid = :courseid";
-
-        $params = ['courseid' => $context->instanceid];
-
-        $userlist->add_from_sql('userid', $sql, $params);
-    }
-
-    /**
-     * Delete data for users
+     * Delete data for the listed users within the (course) context.
      *
      * @param approved_userlist $userlist
      */
-    public static function delete_data_for_users(approved_userlist $userlist) {
+    public static function delete_data_for_users(approved_userlist $userlist): void {
         global $DB;
-
         $context = $userlist->get_context();
-
-        if ($context->contextlevel != CONTEXT_COURSE) {
+        if (!$context instanceof \context_course) {
             return;
         }
-
         $userids = $userlist->get_userids();
-
         if (empty($userids)) {
             return;
         }
 
-        list($usersql, $userparams) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED);
+        [$insql, $inparams] = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED);
+        $params = array_merge(['courseid' => $context->instanceid], $inparams);
+        $DB->delete_records_select(
+            'local_course_access_sel',
+            "courseid = :courseid AND userid $insql",
+            $params
+        );
+        $DB->delete_records_select(
+            'local_course_access_history',
+            "courseid = :courseid AND userid $insql",
+            $params
+        );
 
-        $select = "courseid = :courseid AND userid $usersql";
-        $params = ['courseid' => $context->instanceid] + $userparams;
-
-        $DB->delete_records_select('local_course_access_user', $select, $params);
+        [$actorsql, $actorparams] = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED);
+        $actorallparams = array_merge(['courseid' => $context->instanceid], $actorparams);
+        $DB->set_field_select(
+            'local_course_access_history',
+            'changed_by',
+            0,
+            "courseid = :courseid AND changed_by $actorsql",
+            $actorallparams
+        );
     }
 }

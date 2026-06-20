@@ -18,14 +18,15 @@
  * Version information for Course Access plugin
  *
  * @package    local_course_access
- * @copyright  2025
+ * @copyright  2025 Rurak
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_course_access';
-$plugin->version = 2025012529; // v2.1.0 - per-condition "allow students to change selection" flag.
-$plugin->requires = 2025100600; // Moodle 5.1 (real 5.1 branch integer; 2024042200 was 4.4).
-$plugin->maturity = MATURITY_STABLE;
-$plugin->release = 'v2.1.0';
+$plugin->version   = 2026062000;  // The current plugin version (Date: YYYYMMDDXX).
+$plugin->requires  = 2025100600;  // Requires Moodle 5.1 (2025100600) or later.
+$plugin->supported = [501, 502];  // Supported from Moodle 5.1 to 5.2.
+$plugin->maturity  = MATURITY_STABLE;
+$plugin->release   = 'v2.2.0';

@@ -166,7 +166,7 @@ Whether a student can change their choice **after** the first selection is a per
 - When `allowchange=1`: the link appears; `change_selection.php` shows the existing warning and asks for an explicit confirmation via `local_course_access/change_confirm` (`core/notification` saveCancel) before saving. The change updates the profile field → access re-evaluates immediately; the change is recorded in the `history` table.
 - The toggle lives in the configure form's "Advanced options" `<details>`.
 
-**AMD build convention.** The module is authored as **legacy AMD** (`define([...], function(){})`), so no transpilation is required and `amd/build/condition_modal.min.js` is a verbatim copy of `amd/src/condition_modal.js`. Moodle serves `amd/build/`, so the build must never lag the source — `scripts/package_workspace.sh` re-mirrors src→build automatically at package time. If a module is ever rewritten as a native ES6 module (`import`/`export`), this copy is no longer sufficient and it must be compiled with `grunt amd` against a Moodle checkout.
+**AMD build convention.** The modules are **ES6** (`import`/`export`) and are compiled to `amd/build/*.min.js` with `grunt amd` (rollup) against a Moodle checkout. The committed `amd/build/` is the rollup output and must ship as-is — `scripts/package_workspace.sh` does **not** copy src→build. The student gate (`condition_modal`) renders a Mustache template (`templates/condition_modal.mustache`) for escaped output and loads its text via `core/str`.
 
 ## Development Commands
 

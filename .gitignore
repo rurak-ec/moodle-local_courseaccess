@@ -3,8 +3,8 @@
 *.zip
 *.tar.gz
 
-# Reference/baseline (no usado aquí; ignorado por paridad con la convención)
-reference/
+# Reference/baseline (repo-root only)
+/reference/
 workspace/_archive/
 workspace/*.bak.*
 

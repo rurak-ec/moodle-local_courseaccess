@@ -5,6 +5,14 @@
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
  * Conditional selection page for students
@@ -29,48 +37,47 @@ $PAGE->set_title(get_string('selectcondition', 'local_course_access'));
 $PAGE->set_heading($course->fullname);
 $PAGE->set_pagelayout('standard');
 
-// Get conditions (should be only one now)
+// Get conditions (should be only one now).
 $conditions = local_course_access_get_conditions_for_course($course->id);
 $condition = !empty($conditions) ? reset($conditions) : null;
 
 if (!$condition) {
-    // No conditions defined, nothing to select
+    // No conditions defined, nothing to select.
     redirect(new moodle_url('/course/view.php', ['id' => $course->id]));
 }
 
-// Check if user has already completed
+// Check if user has already completed.
 if (local_course_access_user_has_completed_all($USER->id, $course->id)) {
     redirect(new moodle_url('/course/view.php', ['id' => $course->id]));
 }
 
-// Handle Form Submission
-if ($data = data_submitted() && confirm_sesskey()) {
+// Handle Form Submission.
+if (data_submitted() && confirm_sesskey()) {
     try {
         $optionid = required_param('optionid', PARAM_INT);
 
-        // Validate option belongs to condition
-        $valid_option = false;
+        // Validate option belongs to condition.
+        $validoption = false;
         foreach ($condition->options as $opt) {
             if ($opt->id == $optionid) {
-                $valid_option = true;
+                $validoption = true;
                 break;
             }
         }
 
-        if ($valid_option) {
+        if ($validoption) {
             local_course_access_save_selection($USER->id, $course->id, $condition->id, $optionid);
             \core\notification::success(get_string('selectionssaved', 'local_course_access'));
             redirect(new moodle_url('/course/view.php', ['id' => $course->id]));
         } else {
             throw new moodle_exception('invalidoption', 'local_course_access');
         }
-
     } catch (Exception $e) {
         \core\notification::error($e->getMessage());
     }
 }
 
-// Display Form
+// Display Form.
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('selectcondition', 'local_course_access'));
 
@@ -95,12 +102,12 @@ foreach ($condition->options as $opt) {
 
 echo html_writer::select($options, 'optionid', '', [
     'class' => 'form-control custom-select',
-    'id' => 'optionid'
+    'id' => 'optionid',
 ], ['' => get_string('choose')]);
 
-echo html_writer::end_div(); // form-group
-echo html_writer::end_div(); // card-body
-echo html_writer::end_div(); // card
+echo html_writer::end_div();  // Form-group.
+echo html_writer::end_div();  // Card-body.
+echo html_writer::end_div();  // Card.
 
 echo html_writer::div(
     html_writer::tag('button', get_string('save'), ['type' => 'submit', 'class' => 'btn btn-primary']),
