@@ -2,15 +2,15 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SRC_DIR="${1:-${ROOT_DIR}/workspace/local_course_access}"
+SRC_DIR="${1:-${ROOT_DIR}/workspace/local_courseaccess}"
 BUILD_DIR="${ROOT_DIR}/build"
 STAMP="$(date +%Y%m%d_%H%M%S)"
-OUT_ZIP="${BUILD_DIR}/course_access_${STAMP}.zip"
+OUT_ZIP="${BUILD_DIR}/courseaccess_${STAMP}.zip"
 STAGE_DIR="$(mktemp -d)"
 
 if [[ ! -d "${SRC_DIR}" ]]; then
   echo "ERROR: workspace plugin not found: ${SRC_DIR}" >&2
-  echo "Expected the plugin source at workspace/local_course_access." >&2
+  echo "Expected the plugin source at workspace/local_courseaccess." >&2
   exit 1
 fi
 
@@ -25,13 +25,13 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Moodle expects the local plugin folder name inside local/ to be "course_access"
-# (the plugin name without the "local_" type prefix), not "local_course_access".
-cp -a "${SRC_DIR}" "${STAGE_DIR}/course_access"
+# Moodle expects the local plugin folder name inside local/ to be "courseaccess"
+# (the plugin name without the "local_" type prefix), not "local_courseaccess".
+cp -a "${SRC_DIR}" "${STAGE_DIR}/courseaccess"
 
 (
   cd "${STAGE_DIR}"
-  zip -rq "${OUT_ZIP}" "course_access" -x '*.DS_Store' '*__MACOSX*' '*/.git/*'
+  zip -rq "${OUT_ZIP}" "courseaccess" -x '*.DS_Store' '*__MACOSX*' '*/.git/*'
 )
 
 echo "OK: package created"

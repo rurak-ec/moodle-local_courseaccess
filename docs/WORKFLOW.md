@@ -9,13 +9,13 @@
 ## 2) Editar plugin
 
 Trabaja en:
-- `workspace/local_course_access`
+- `workspace/local_courseaccess`
 
 Archivos más usados:
-- `workspace/local_course_access/configure.php`
-- `workspace/local_course_access/lib.php`
-- `workspace/local_course_access/amd/src/condition_modal.js`
-- `workspace/local_course_access/version.php`
+- `workspace/local_courseaccess/configure.php`
+- `workspace/local_courseaccess/lib.php`
+- `workspace/local_courseaccess/amd/src/condition_modal.js`
+- `workspace/local_courseaccess/version.php`
 
 > Si editas `amd/src/`, regenera el build con `grunt amd` en tu Moodle (el módulo cargado es `amd/build/condition_modal.min.js`).
 
@@ -26,11 +26,11 @@ Archivos más usados:
 ```
 
 Salida:
-- `build/course_access_YYYYMMDD_HHMMSS.zip` (carpeta interna `course_access/`).
+- `build/courseaccess_YYYYMMDD_HHMMSS.zip` (carpeta interna `courseaccess/`).
 
 ## 4) Instalar/probar en Moodle
 
-- Descomprimir en `local/course_access`
+- Descomprimir en `local/courseaccess`
 - Ejecutar:
   ```bash
   php admin/cli/upgrade.php --non-interactive
@@ -41,6 +41,6 @@ Salida:
 
 ```bash
 git add .
-git commit -m "feat: cambios en local_course_access"
+git commit -m "feat: cambios en local_courseaccess"
 git push
 ```

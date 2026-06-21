@@ -12,13 +12,13 @@ for dir in workspace scripts docs; do
   fi
 done
 
-if [[ -d "${ROOT_DIR}/workspace/local_course_access" ]]; then
-  echo "OK: workspace/local_course_access found"
+if [[ -d "${ROOT_DIR}/workspace/local_courseaccess" ]]; then
+  echo "OK: workspace/local_courseaccess found"
 else
-  echo "WARN: workspace/local_course_access not found"
+  echo "WARN: workspace/local_courseaccess not found"
 fi
 
-if [[ -f "${ROOT_DIR}/workspace/local_course_access/version.php" ]]; then
+if [[ -f "${ROOT_DIR}/workspace/local_courseaccess/version.php" ]]; then
   echo "OK: version.php present"
 fi
 

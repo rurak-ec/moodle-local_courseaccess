@@ -1,4 +1,4 @@
-# Course access (local_course_access)
+# Course access (local_courseaccess)
 
 A Moodle **local** plugin that gates a course behind a required choice: a teacher defines a course
 *condition* (e.g. "Shift", "Lab group", "Modality") with options, and on first course view each
@@ -6,14 +6,14 @@ student must pick one before they can use the course. The choice is stored in an
 profile field, so teachers can then show different activities per group using Moodle's native
 **Restrict access → User profile** conditions.
 
-- **Component:** `local_course_access`
-- **Supported Moodle:** 5.1 – 5.2 (CI also tracks `main` / 5.3-dev)
+- **Component:** `local_courseaccess`
+- **Supported Moodle:** 4.5 – 5.2 (CI also tracks `main` / 5.3-dev)
 - **License:** GNU GPL v3 or later
-- **Issues:** <https://github.com/rurak-ec/moodle-course_access/issues>
+- **Issues:** <https://github.com/rurak-ec/moodle-local_courseaccess/issues>
 
 > Development repository. The installable plugin lives in
-> [`workspace/local_course_access`](workspace/local_course_access). The plugin README has full
-> details: [`workspace/local_course_access/README.md`](workspace/local_course_access/README.md).
+> [`workspace/local_courseaccess`](workspace/local_courseaccess). The plugin README has full
+> details: [`workspace/local_courseaccess/README.md`](workspace/local_courseaccess/README.md).
 
 ---
 
@@ -36,11 +36,11 @@ profile field, so teachers can then show different activities per group using Mo
 ### Installation
 1. Build the ZIP: `./scripts/package_workspace.sh`
 2. Install via **Site administration → Plugins → Install plugins**, or copy
-   `workspace/local_course_access` to `local/course_access` and run the upgrade.
+   `workspace/local_courseaccess` to `local/courseaccess` and run the upgrade.
 
 ### Quality
 CI runs `moodle-plugin-ci` (phpcs, phpdoc, validate, savepoints, mustache, grunt, PHPUnit, Behat)
-across PHP 8.2–8.4 and Moodle 5.1/5.2 on PostgreSQL and MariaDB, plus a non-blocking `main` (5.3-dev) run.
+across PHP 8.1–8.4 and Moodle 4.5/5.1/5.2 on PostgreSQL and MariaDB, plus a non-blocking `main` (5.3-dev) run.
 
 ---
 
@@ -66,7 +66,7 @@ across PHP 8.2–8.4 and Moodle 5.1/5.2 on PostgreSQL and MariaDB, plus a non-bl
 ### Instalación
 1. Generar el ZIP: `./scripts/package_workspace.sh`
 2. Instalar desde **Administración del sitio → Plugins → Instalar plugins**, o copiar
-   `workspace/local_course_access` a `local/course_access` y ejecutar la actualización.
+   `workspace/local_courseaccess` a `local/courseaccess` y ejecutar la actualización.
 
 ## Licencia / License
 GNU GPL v3 or later. See [LICENSE](LICENSE).
