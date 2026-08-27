@@ -40,38 +40,21 @@
  *                               looked up from the condition record.
  * @return string The profile-field shortname
  */
-function local_courseaccess_get_field_shortname($courseid, $conditionid, $customid = null) {
-    global $DB;
-
-    if ($customid === null) {
-        $customid = $DB->get_field('local_courseaccess_cond', 'custom_id', ['id' => $conditionid]);
-    }
-
-    if (empty($customid)) {
-        $customid = (string)$courseid;
-    }
-
-    return "acc_{$customid}_{$conditionid}";
+function local_courseaccess_get_field_shortname($courseid, $conditionid = null, $customid = null) {
+    return "acc_{$courseid}";
 }
 
 /**
- * Default custom_id for a course: the course shortname, sanitised to a safe
- * identifier (the value becomes part of the profile-field shortname, which must
- * not contain spaces or special characters). Falls back to the course id when
- * the shortname has no usable alphanumeric characters.
+ * Default custom_id for a course: the course ID as string.
  *
- * @param stdClass|int $course Course record (with ->id, ->shortname) or course id
+ * @param stdClass|int $course Course record (with ->id) or course id
  * @return string
  */
 function local_courseaccess_default_customid($course) {
-    global $DB;
-
-    if (!is_object($course)) {
-        $course = $DB->get_record('course', ['id' => $course], 'id, shortname', MUST_EXIST);
+    if (is_object($course)) {
+        return (string)$course->id;
     }
-
-    $clean = clean_param((string)$course->shortname, PARAM_ALPHANUMEXT);
-    return $clean !== '' ? $clean : (string)$course->id;
+    return (string)$course;
 }
 
 // LIFECYCLE HELPERS (activation reset, restriction detection, custom_id lock).
@@ -232,9 +215,7 @@ function local_courseaccess_save_conditions($courseid, $conditionsdata) {
             $condition->courseid = $courseid;
             $condition->name = $cdata['name'];
             $condition->description = isset($cdata['description']) ? $cdata['description'] : '';
-            $condition->custom_id = !empty($cdata['custom_id'])
-                ? $cdata['custom_id']
-                : local_courseaccess_default_customid($courseid);
+            $condition->custom_id = (string)$courseid;
             $condition->enabled = isset($cdata['enabled']) ? (int)$cdata['enabled'] : 1;
             $condition->allowchange = isset($cdata['allowchange']) ? (int)$cdata['allowchange'] : 0;
             $condition->sortorder = isset($cdata['sortorder']) ? $cdata['sortorder'] : 0;
@@ -254,31 +235,12 @@ function local_courseaccess_save_conditions($courseid, $conditionsdata) {
                 }
             }
 
-            // Custom_id is immutable once the field is in use: renaming the field.
-            // Shortname would orphan existing access restrictions (Moodle core stores.
-            // Them by shortname) and hide those activities for everyone. Force the.
-            // Stored value when locked.
-            if ($isupdate && local_courseaccess_customid_is_locked($courseid, $cdata['id'])) {
-                $condition->custom_id = $oldcondition->custom_id;
-            }
-
-            // Check if custom_id changed (for migration) - only possible when unlocked.
-            $oldcustomid = null;
-            if ($isupdate && $oldcondition->custom_id != $condition->custom_id) {
-                $oldcustomid = $oldcondition->custom_id;
-            }
-
             if (!empty($cdata['id']) && isset($existingconditions[$cdata['id']])) {
                 // Update existing.
                 $condition->id = $cdata['id'];
                 $DB->update_record('local_courseaccess_cond', $condition);
                 $conditionid = $condition->id;
                 $processedids[] = $conditionid;
-
-                // If custom_id changed, migrate profile fields.
-                if ($oldcustomid !== null) {
-                    local_courseaccess_migrate_profile_field($courseid, $conditionid, $oldcustomid, $condition->custom_id);
-                }
             } else {
                 // Create new.
                 $condition->timecreated = time();
@@ -310,7 +272,8 @@ function local_courseaccess_save_conditions($courseid, $conditionsdata) {
                 } else {
                     // Create option.
                     $option->timecreated = time();
-                    $DB->insert_record('local_courseaccess_options', $option);
+                    $newid = $DB->insert_record('local_courseaccess_options', $option);
+                    $processedoptionids[] = $newid;
                 }
             }
 
@@ -405,8 +368,8 @@ function local_courseaccess_create_profile_field($courseid, $conditionid, $condi
     $field = $DB->get_record('user_info_field', ['shortname' => $shortname]);
     if ($field) {
         // Update name if changed.
-        if ($field->name !== $course->shortname) {
-            $field->name = $course->shortname;
+        if ($field->name !== $shortname) {
+            $field->name = $shortname;
             $DB->update_record('user_info_field', $field);
         }
         return $field->id;
@@ -415,9 +378,9 @@ function local_courseaccess_create_profile_field($courseid, $conditionid, $condi
     // Create custom profile field.
     $field = new stdClass();
     $field->shortname = $shortname;
-    $field->name = $course->shortname;
+    $field->name = $shortname;
     $field->datatype = 'text';
-    $field->description = "Course access '{$conditionname}' for course '{$course->fullname}'";
+    $field->description = "Course access '{$conditionname}' for course ID {$courseid}";
     $field->descriptionformat = FORMAT_HTML;
     $field->categoryid = $category->id;
     $field->sortorder = $DB->count_records('user_info_field', ['categoryid' => $category->id]) + 1;

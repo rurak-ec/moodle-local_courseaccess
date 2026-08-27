@@ -52,7 +52,6 @@ if (data_submitted() && confirm_sesskey()) {
         $conditionid = isset($rawcondition['id']) && is_numeric($rawcondition['id']) ? intval($rawcondition['id']) : null;
         $conditionname = isset($rawcondition['name']) ? clean_param($rawcondition['name'], PARAM_TEXT) : '';
         $conditiondesc = isset($rawcondition['description']) ? clean_param($rawcondition['description'], PARAM_TEXT) : '';
-        $customid = isset($rawcondition['custom_id']) ? clean_param($rawcondition['custom_id'], PARAM_TEXT) : '';
         $enabled = isset($rawcondition['enabled']) ? 1 : 0;
         $allowchange = isset($rawcondition['allowchange']) ? 1 : 0;
 
@@ -60,17 +59,12 @@ if (data_submitted() && confirm_sesskey()) {
             throw new moodle_exception('error_condition_name_required', 'local_courseaccess');
         }
 
-        // Validate custom_id (must not be empty): default to the course shortname.
-        if (empty($customid)) {
-            $customid = local_courseaccess_default_customid($course);
-        }
-
         // Structure for lib function (expects array of conditions).
         $conditiondata = [
             'id' => $conditionid,
             'name' => $conditionname,
             'description' => $conditiondesc,
-            'custom_id' => $customid,
+            'custom_id' => (string)$course->id,
             'enabled' => $enabled,
             'allowchange' => $allowchange,
             'sortorder' => 0,
@@ -172,18 +166,14 @@ $templatecontext = [
     'conditionid' => $currentcondition ? $currentcondition->id : '',
     'conditionname' => $currentcondition ? $currentcondition->name : '',
     'conditiondescription' => $currentcondition ? $currentcondition->description : '',
-    'customid' => $currentcondition ? $currentcondition->custom_id : local_courseaccess_default_customid($course),
-    'customiddefault' => local_courseaccess_default_customid($course),
+    'fieldshortname' => local_courseaccess_get_field_shortname($course->id),
+    'fielddisplayname' => local_courseaccess_get_field_shortname($course->id),
     // New conditions start PAUSED: the teacher configures first, then activates.
-    // (Activating prompts every student to choose).
     'enabled' => $currentcondition ? !empty($currentcondition->enabled) : false,
     'options' => $options,
     'hascondition' => (bool)$currentcondition,
     // Whether students may change their selection after first choosing (default off).
     'allowchange' => $currentcondition ? !empty($currentcondition->allowchange) : false,
-    // Custom_id becomes read-only once the field is in use (changing it would break restrictions).
-    'customid_locked' => $currentcondition
-        ? local_courseaccess_customid_is_locked($course->id, $currentcondition->id) : false,
     // Whether any student already has a selection (drives the re-activation confirm in JS).
     'hasselections' => $currentcondition
         ? $DB->record_exists('local_courseaccess_sel', ['conditionid' => $currentcondition->id]) : false,
@@ -191,13 +181,7 @@ $templatecontext = [
 
 // Data for the post-save "what's next" panel.
 if ($currentcondition) {
-    $templatecontext['fielddisplayname'] = $course->shortname;
-    $templatecontext['fieldshortname'] = local_courseaccess_get_field_shortname(
-        $course->id,
-        $currentcondition->id,
-        $currentcondition->custom_id
-    );
-    $templatecontext['nextstep3text'] = get_string('nextsteps_step3', 'local_courseaccess', $course->shortname);
+    $templatecontext['nextstep3text'] = get_string('nextsteps_step3', 'local_courseaccess', local_courseaccess_get_field_shortname($course->id));
     $templatecontext['restrictioncount'] = local_courseaccess_count_field_restrictions(
         $course->id,
         $currentcondition->id

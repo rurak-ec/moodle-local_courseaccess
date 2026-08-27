@@ -109,107 +109,95 @@
             </div>
         </div>
 
-        {{! Condition state }}
-        <div class="card mb-3">
+        {{! Condition state and settings }}
+        <div class="card mb-4">
             <div class="card-body">
-                <div class="d-flex align-items-center gap-2 mb-1">
-                    <div class="form-check form-switch mb-0">
-                        <input type="checkbox" class="form-check-input" role="switch" id="lcc-enabled"
-                               name="condition[enabled]" value="1" {{#enabled}}checked{{/enabled}}>
-                        <label class="form-check-label fw-bold" for="lcc-enabled">
-                            {{#str}}conditionactive, local_courseaccess{{/str}}
+                {{! Setting 1: Condition active }}
+                <div class="lcc-setting-item">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <div class="form-check form-switch mb-0">
+                            <input type="checkbox" class="form-check-input" role="switch" id="lcc-enabled"
+                                   name="condition[enabled]" value="1" {{#enabled}}checked{{/enabled}}>
+                            <label class="form-check-label fw-bold cursor-pointer" for="lcc-enabled">
+                                {{#str}}conditionactive, local_courseaccess{{/str}}
+                            </label>
+                        </div>
+                        <span id="lcc-state-badge"
+                              class="badge {{#enabled}}bg-success{{/enabled}}{{^enabled}}bg-secondary{{/enabled}} ms-1">
+                            {{#enabled}}{{#str}}statusactive, local_courseaccess{{/str}}{{/enabled}}{{^enabled}}{{#str}}statuspaused, local_courseaccess{{/str}}{{/enabled}}
+                        </span>
+                    </div>
+                    <div class="lcc-setting-desc">
+                        {{#str}}conditionactive_help, local_courseaccess{{/str}}
+                    </div>
+                </div>
+
+                <hr class="lcc-divider">
+
+                {{! Setting 2: Allow students to change their selection after first choosing }}
+                <div class="lcc-setting-item">
+                    <div class="form-check form-switch mb-2">
+                        <input type="checkbox" class="form-check-input" role="switch" id="lcc-allowchange"
+                               name="condition[allowchange]" value="1" {{#allowchange}}checked{{/allowchange}}>
+                        <label class="form-check-label fw-bold cursor-pointer" for="lcc-allowchange">
+                            {{#str}}allowchange, local_courseaccess{{/str}}
                         </label>
                     </div>
-                    <span id="lcc-state-badge"
-                          class="badge {{#enabled}}bg-success{{/enabled}}{{^enabled}}bg-secondary{{/enabled}}">
-                        {{#enabled}}{{#str}}statusactive, local_courseaccess{{/str}}{{/enabled}}{{^enabled}}{{#str}}statuspaused, local_courseaccess{{/str}}{{/enabled}}
-                    </span>
+                    <div class="lcc-setting-desc">
+                        {{#str}}allowchange_help, local_courseaccess{{/str}}
+                    </div>
                 </div>
-                <small class="form-text text-muted">{{#str}}conditionactive_help, local_courseaccess{{/str}}</small>
             </div>
         </div>
 
-        {{! Advanced options (progressive disclosure) }}
-        <details class="mb-3 lcc-advanced">
-            <summary class="fw-bold mb-2">{{#str}}advancedoptions, local_courseaccess{{/str}}</summary>
-            <div class="card">
-                <div class="card-body">
-                    {{! Allow students to change their selection after first choosing }}
-                    <div class="form-group mb-3">
-                        <div class="form-check form-switch">
-                            <input type="checkbox" class="form-check-input" role="switch" id="lcc-allowchange"
-                                   name="condition[allowchange]" value="1" {{#allowchange}}checked{{/allowchange}}>
-                            <label class="form-check-label fw-bold" for="lcc-allowchange">
-                                {{#str}}allowchange, local_courseaccess{{/str}}
-                            </label>
-                        </div>
-                        <small class="form-text text-muted">{{#str}}allowchange_help, local_courseaccess{{/str}}</small>
-                    </div>
-
-                    <hr>
-
-                    <div class="form-group mb-0">
-                        <label for="lcc-customid" class="form-label">{{#str}}customid, local_courseaccess{{/str}}</label>
-                        <input type="text" class="form-control" id="lcc-customid" name="condition[custom_id]"
-                               value="{{customid}}" placeholder="{{customiddefault}}"
-                               {{#customid_locked}}readonly{{/customid_locked}}>
-                        <small class="form-text text-muted d-block">{{#str}}customid_help, local_courseaccess{{/str}}</small>
-                        {{#customid_locked}}
-                        <small class="form-text text-info d-block mt-1">
-                            <i class="fa fa-lock" aria-hidden="true"></i> {{#str}}customid_locked, local_courseaccess{{/str}}
-                        </small>
-                        {{/customid_locked}}
-                        {{^customid_locked}}
-                        <small class="form-text text-warning d-block mt-1">{{#str}}migrationwarning, local_courseaccess{{/str}}</small>
-                        {{/customid_locked}}
-                    </div>
-                </div>
-            </div>
-        </details>
-
         <div class="form-actions">
-            <button type="submit" class="btn btn-primary">{{#str}}savechanges{{/str}}</button>
-            <a href="{{courseurl}}" class="btn btn-secondary">{{#str}}backtocourse, local_courseaccess{{/str}}</a>
+            <button type="submit" class="btn btn-primary px-4">{{#str}}savechanges{{/str}}</button>
+            <a href="{{courseurl}}" class="btn btn-outline-secondary">{{#str}}backtocourse, local_courseaccess{{/str}}</a>
         </div>
     </form>
 
-    {{! What's next panel (only when a condition is saved) }}
+    {{! Instructions panel (only when a condition is saved) }}
     {{#hascondition}}
-    <div class="card mt-4 border-success lcc-nextsteps">
+    <div class="card mt-4 lcc-nextsteps">
         <div class="card-body">
-            <h4 class="card-title h5 text-success">{{#str}}nextsteps_heading, local_courseaccess{{/str}}</h4>
+            <h4 class="card-title h5 text-success d-flex align-items-center gap-2 mb-3">
+                <i class="fa fa-info-circle" aria-hidden="true"></i>
+                {{#str}}nextsteps_heading, local_courseaccess{{/str}}
+            </h4>
             {{#ispaused}}
-            <div class="alert alert-secondary py-2">
-                <i class="fa fa-pause-circle" aria-hidden="true"></i> {{#str}}nextsteps_paused, local_courseaccess{{/str}}
+            <div class="alert alert-secondary py-2 mb-3">
+                <i class="fa fa-pause-circle me-1" aria-hidden="true"></i> {{#str}}nextsteps_paused, local_courseaccess{{/str}}
             </div>
             {{/ispaused}}
-            <p>{{#str}}nextsteps_intro, local_courseaccess{{/str}}</p>
-            <p class="mb-2">
-                <strong>{{#str}}nextsteps_field, local_courseaccess{{/str}}:</strong>
-                {{fielddisplayname}} <code class="ms-1 ml-1">{{fieldshortname}}</code>
-            </p>
-            <ol>
+            <p class="mb-3">{{#str}}nextsteps_intro, local_courseaccess{{/str}}</p>
+            <div class="p-3 bg-white border rounded mb-3">
+                <span class="text-muted fw-bold">{{#str}}nextsteps_field, local_courseaccess{{/str}}:</span>
+                <code class="ms-2 fs-6">{{fieldshortname}}</code>
+            </div>
+            <ol class="ps-3 mb-4">
                 <li>{{#str}}nextsteps_step1, local_courseaccess{{/str}}</li>
                 <li>{{#str}}nextsteps_step2, local_courseaccess{{/str}}</li>
                 <li>{{nextstep3text}}</li>
             </ol>
-            <p class="mb-1"><strong>{{#str}}nextsteps_valuestable, local_courseaccess{{/str}}</strong></p>
-            <table class="table table-sm w-auto">
-                <thead>
-                    <tr>
-                        <th scope="col">{{#str}}optionname, local_courseaccess{{/str}}</th>
-                        <th scope="col">{{#str}}optionvalue, local_courseaccess{{/str}}</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {{#options}}
-                    <tr>
-                        <td>{{name}}</td>
-                        <td><code>{{value}}</code></td>
-                    </tr>
-                    {{/options}}
-                </tbody>
-            </table>
+            <p class="fw-bold mb-2">{{#str}}nextsteps_valuestable, local_courseaccess{{/str}}</p>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered w-auto mb-0 bg-white">
+                    <thead class="table-light">
+                        <tr>
+                            <th scope="col" class="px-3">{{#str}}optionname, local_courseaccess{{/str}}</th>
+                            <th scope="col" class="px-3">{{#str}}optionvalue, local_courseaccess{{/str}}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{#options}}
+                        <tr>
+                            <td class="px-3">{{name}}</td>
+                            <td class="px-3"><code class="fw-bold">{{value}}</code></td>
+                        </tr>
+                        {{/options}}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
     {{/hascondition}}

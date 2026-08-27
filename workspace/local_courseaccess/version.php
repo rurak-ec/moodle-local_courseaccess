@@ -25,8 +25,8 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_courseaccess';
-$plugin->version   = 2026062002;  // The current plugin version (Date: YYYYMMDDXX).
+$plugin->version   = 2026062007;  // The current plugin version (Date: YYYYMMDDXX).
 $plugin->requires  = 2024100700;  // Requires Moodle 4.5 (2024100700) or later.
 $plugin->supported = [405, 502];  // Supported from Moodle 4.5 to 5.2.
 $plugin->maturity  = MATURITY_STABLE;
-$plugin->release   = 'v2.4.0';
+$plugin->release   = 'v2.4.5';
