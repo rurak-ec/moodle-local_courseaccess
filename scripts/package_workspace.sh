@@ -27,12 +27,30 @@ trap cleanup EXIT
 
 # Moodle expects the local plugin folder name inside local/ to be "courseaccess"
 # (the plugin name without the "local_" type prefix), not "local_courseaccess".
-cp -a "${SRC_DIR}" "${STAGE_DIR}/courseaccess"
+if command -v zip >/dev/null 2>&1; then
+  cp -a "${SRC_DIR}" "${STAGE_DIR}/courseaccess"
+  (
+    cd "${STAGE_DIR}"
+    zip -rq "${OUT_ZIP}" "courseaccess" -x '*.DS_Store' '*__MACOSX*' '*/.git/*'
+  )
+elif command -v docker >/dev/null 2>&1; then
+  case "${SRC_DIR}" in
+    "${ROOT_DIR}"/*) RELATIVE_SRC="${SRC_DIR#"${ROOT_DIR}"/}" ;;
+    *)
+      echo "ERROR: Docker fallback only supports a source inside ${ROOT_DIR}" >&2
+      exit 1
+      ;;
+  esac
 
-(
-  cd "${STAGE_DIR}"
-  zip -rq "${OUT_ZIP}" "courseaccess" -x '*.DS_Store' '*__MACOSX*' '*/.git/*'
-)
+  docker run --rm --user "$(id -u):$(id -g)" --entrypoint php \
+    -v "${ROOT_DIR}:/workspace" \
+    moodle:5.2.1-pgsql \
+    -r '$source = "/workspace/" . $argv[1]; $output = "/workspace/" . $argv[2]; $zip = new ZipArchive(); if ($zip->open($output, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) { fwrite(STDERR, "Unable to create ZIP\\n"); exit(1); } $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($source, FilesystemIterator::SKIP_DOTS)); foreach ($iterator as $file) { if ($file->isFile()) { $relative = substr($file->getPathname(), strlen($source) + 1); $zip->addFile($file->getPathname(), "courseaccess/" . $relative); } } $zip->close();' \
+    "${RELATIVE_SRC}" "build/$(basename "${OUT_ZIP}")"
+else
+  echo "ERROR: zip is not installed and Docker is unavailable for the fallback." >&2
+  exit 1
+fi
 
 echo "OK: package created"
 echo "  ${OUT_ZIP}"
