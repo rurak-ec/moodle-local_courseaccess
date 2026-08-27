@@ -181,7 +181,11 @@ $templatecontext = [
 
 // Data for the post-save "what's next" panel.
 if ($currentcondition) {
-    $templatecontext['nextstep3text'] = get_string('nextsteps_step3', 'local_courseaccess', local_courseaccess_get_field_shortname($course->id));
+    $templatecontext['nextstep3text'] = get_string(
+        'nextsteps_step3',
+        'local_courseaccess',
+        local_courseaccess_get_field_shortname($course->id)
+    );
     $templatecontext['restrictioncount'] = local_courseaccess_count_field_restrictions(
         $course->id,
         $currentcondition->id

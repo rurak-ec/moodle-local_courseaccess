@@ -61,7 +61,7 @@ final class lib_test extends \advanced_testcase {
     }
 
     /**
-     * Saving a condition creates a locked custom profile field with the expected shortname.
+     * Saving a condition creates the course's locked custom profile field.
      */
     public function test_save_conditions_creates_locked_profile_field(): void {
         global $DB;
@@ -69,7 +69,7 @@ final class lib_test extends \advanced_testcase {
         $conditionid = $this->create_condition($course->id);
 
         $shortname = local_courseaccess_get_field_shortname($course->id, $conditionid);
-        $this->assertSame("acc_CRS1_{$conditionid}", $shortname);
+        $this->assertSame("acc_{$course->id}", $shortname);
 
         $field = $DB->get_record('user_info_field', ['shortname' => $shortname]);
         $this->assertNotEmpty($field);

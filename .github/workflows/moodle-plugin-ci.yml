@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     # The "main" row tracks Moodle development (the future 5.3) as an early warning
     # only; it is allowed to fail without failing the workflow.
@@ -19,7 +19,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        image: ${{ matrix.database == 'pgsql' && 'postgres:17' || '' }}
         env:
           POSTGRES_USER: 'postgres'
           POSTGRES_HOST_AUTH_METHOD: 'trust'
@@ -32,10 +32,9 @@ jobs:
           --health-retries 3
 
       mariadb:
-        image: mariadb:10.11
+        image: ${{ matrix.database == 'mariadb' && 'mariadb:11' || '' }}
         env:
-          MYSQL_USER: 'root'
-          MYSQL_ALLOW_EMPTY_PASSWORD: "true"
+          MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: '1'
           MYSQL_CHARACTER_SET_SERVER: "utf8mb4"
           MYSQL_COLLATION_SERVER: "utf8mb4_unicode_ci"
         ports:
@@ -74,16 +73,17 @@ jobs:
 
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: repo
+          persist-credentials: false
 
       - name: Setup PHP ${{ matrix.php }}
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
           extensions: pgsql, mysqli, gd, zip, intl, soap, exif, sodium
-          ini-values: max_input_vars=5000
+          ini-values: max_input_vars=5000, opcache.enable_cli=1
           coverage: none
 
       - name: Initialise moodle-plugin-ci
@@ -138,5 +138,15 @@ jobs:
         run: moodle-plugin-ci phpunit --fail-on-warning
 
       - name: Behat features
+        id: behat
         if: ${{ !cancelled() }}
-        run: moodle-plugin-ci behat --profile chrome
+        run: moodle-plugin-ci behat --profile chrome --scss-deprecations
+
+      - name: Upload Behat Faildump
+        if: ${{ failure() && steps.behat.outcome == 'failure' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: Behat Faildump (${{ join(matrix.*, ', ') }})
+          path: ${{ github.workspace }}/moodledata/behat_dump
+          retention-days: 7
+          if-no-files-found: ignore
