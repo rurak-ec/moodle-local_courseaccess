@@ -1,6 +1,6 @@
 # Condiciones del Curso — Plugin local de Moodle
 
-[![Moodle](https://img.shields.io/badge/Moodle-4.5+-orange.svg)](https://moodle.org/)
+[![Moodle](https://img.shields.io/badge/Moodle-4.5%20to%205.3%20LTS-orange.svg)](https://moodle.org/)
 [![PHP](https://img.shields.io/badge/PHP-8.1+-blue.svg)](https://www.php.net/)
 [![License](https://img.shields.io/badge/License-GPLv3-green.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
 [![Status](https://img.shields.io/badge/Status-Stable-green.svg)]()
@@ -8,7 +8,7 @@
 Plugin local de Moodle que obliga a los estudiantes a elegir una opción (turno, grupo, modalidad, etc.) antes de acceder al contenido de un curso, y usa esa elección para alimentar las restricciones de acceso nativas de Moodle.
 
 **Componente:** `local_courseaccess`
-**Versión:** v2.4.0 (build 2026062002)
+**Versión:** v2.4.9 (build 2026100801)
 **Licencia:** GNU GPL v3 or later
 
 ---

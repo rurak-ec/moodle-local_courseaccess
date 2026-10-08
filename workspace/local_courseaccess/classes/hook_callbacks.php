@@ -54,7 +54,10 @@ class hook_callbacks {
         global $PAGE, $USER;
 
         // Only on real course-view pages (not dashboard, profile, activities, etc.).
-        if (strpos((string)$PAGE->pagetype, 'course-view') !== 0) {
+        $pagetype = (string)($PAGE->pagetype ?? '');
+        $pagelayout = (string)($PAGE->pagelayout ?? '');
+        $iscourseview = (strpos($pagetype, 'course-view') === 0) || ($pagelayout === 'course');
+        if (!$iscourseview) {
             return;
         }
 
@@ -62,11 +65,10 @@ class hook_callbacks {
         if (!isloggedin() || isguestuser()) {
             return;
         }
-        if (empty($PAGE->course) || $PAGE->course->id <= SITEID) {
+        $courseid = (int)($PAGE->course->id ?? 0);
+        if ($courseid <= SITEID) {
             return;
         }
-
-        $courseid = $PAGE->course->id;
 
         // Shared decision path: returns the pending condition or null.
         $condition = local_courseaccess_get_pending_condition($USER->id, $courseid);

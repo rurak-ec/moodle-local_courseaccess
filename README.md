@@ -7,7 +7,7 @@ profile field, so teachers can then show different activities per group using Mo
 **Restrict access → User profile** conditions.
 
 - **Component:** `local_courseaccess`
-- **Supported Moodle:** 4.5 – 5.2 (CI also tracks `main` / 5.3-dev)
+- **Supported Moodle:** 4.5 – 5.3 (LTS)
 - **License:** GNU GPL v3 or later
 - **Issues:** <https://github.com/rurak-ec/moodle-local_courseaccess/issues>
 

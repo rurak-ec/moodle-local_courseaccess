@@ -2,6 +2,7 @@
 
 .lcc-configure {
     max-width: 960px;
+    contain: layout;
 }
 
 .lcc-configure .card {
@@ -80,7 +81,7 @@
 
 /* Blocking condition-selection overlay (student modal). Colours follow the theme. */
 body.lcc-modal-open {
-    overflow: hidden;
+    overflow: hidden !important;
 }
 
 .lcc-modal-overlay {
@@ -91,25 +92,143 @@ body.lcc-modal-open {
     align-items: center;
     justify-content: center;
     padding: 1rem;
-    background: rgba(0, 0, 0, 0.6);
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+    box-sizing: border-box !important;
+    contain: layout;
 }
 
 .lcc-modal-dialog {
-    width: 100%;
-    max-width: 32rem;
-    padding: 1.5rem;
-    border-radius: 0.5rem;
-    background: var(--bs-body-bg, #fff);
-    color: var(--bs-body-color, #1d2125);
-    box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.3);
+    box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: min(34rem, calc(100vw - 2rem)) !important;
+    min-width: 0 !important;
+    padding: 1.75rem !important;
+    border-radius: 0.75rem !important;
+    background: var(--bs-body-bg, #fff) !important;
+    color: var(--bs-body-color, #1d2125) !important;
+    box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.25) !important;
+    border: 1px solid rgba(0, 0, 0, 0.08) !important;
+    overflow: hidden !important;
+    contain: layout paint;
+}
+
+.lcc-modal-dialog,
+.lcc-modal-dialog * {
+    box-sizing: border-box !important;
 }
 
 .lcc-modal-dialog .lcc-modal-title {
-    margin-top: 0;
+    margin-top: 0 !important;
+    margin-bottom: 0.75rem !important;
+    font-size: 1.35rem !important;
+    font-weight: 700 !important;
+    color: var(--bs-body-color, #1d2125) !important;
+    word-break: break-word !important;
+}
+
+.lcc-modal-dialog .lcc-modal-desc {
+    margin-bottom: 1rem !important;
+    color: var(--bs-secondary-color, #6c757d) !important;
+    font-size: 0.95rem !important;
+    line-height: 1.5 !important;
+    word-break: break-word !important;
+}
+
+.lcc-modal-dialog form,
+.lcc-modal-dialog .lcc-modal-form {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.lcc-modal-dialog .form-group,
+.lcc-modal-dialog .mb-3 {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    margin-bottom: 1rem !important;
+}
+
+.lcc-modal-dialog label,
+.lcc-modal-dialog .form-label {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    font-weight: 600 !important;
+    font-size: 0.95rem !important;
+    margin-bottom: 0.5rem !important;
+    color: var(--bs-body-color, #1d2125) !important;
+}
+
+/* Strict containment on select to prevent ANY overflow, even with very long option text */
+.lcc-modal-dialog select,
+.lcc-modal-dialog .form-select,
+.lcc-modal-dialog .custom-select,
+.lcc-modal-dialog .form-control,
+.lcc-modal-dialog [data-region="lcc-modal-select"] {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    padding: 0.6rem 2.25rem 0.6rem 0.85rem !important;
+    font-size: 0.95rem !important;
+    line-height: 1.5 !important;
+    border-radius: 0.5rem !important;
+    border: 1px solid var(--bs-border-color, #ced4da) !important;
+    background-color: var(--bs-body-bg, #fff) !important;
+    color: var(--bs-body-color, #212529) !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 0.75rem center !important;
+    background-size: 16px 12px !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+    cursor: pointer !important;
+}
+
+.lcc-modal-dialog select:focus,
+.lcc-modal-dialog [data-region="lcc-modal-select"]:focus {
+    border-color: #86b7fe !important;
+    outline: 0 !important;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25) !important;
+}
+
+.lcc-modal-dialog .lcc-modal-error {
+    width: 100% !important;
+    max-width: 100% !important;
+    font-size: 0.875rem !important;
+    word-break: break-word !important;
 }
 
 .lcc-modal-dialog .lcc-modal-actions {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: 1rem;
+    display: flex !important;
+    justify-content: flex-end !important;
+    margin-top: 1.25rem !important;
+    width: 100% !important;
+}
+
+.lcc-modal-dialog .lcc-modal-actions .btn {
+    border-radius: 0.5rem !important;
+    padding: 0.55rem 1.6rem !important;
+    font-weight: 500 !important;
+    font-size: 0.95rem !important;
+    touch-action: manipulation;
+}
+
+.lcc-modal-dialog select,
+.lcc-configure .form-actions .btn {
+    touch-action: manipulation;
 }

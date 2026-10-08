@@ -159,6 +159,52 @@ final class lib_test extends \advanced_testcase {
     }
 
     /**
+     * Changing user selection updates the profile field and creates a history record with courseid.
+     */
+    public function test_change_user_selection_writes_history_with_courseid(): void {
+        global $DB;
+        $course = $this->getDataGenerator()->create_course(['shortname' => 'CRS_CHG']);
+        $conditionid = $this->create_condition($course->id);
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $morningid = $this->first_option_id($conditionid);
+        $afternoonid = (int) $DB->get_field(
+            'local_courseaccess_options',
+            'id',
+            ['conditionid' => $conditionid, 'value' => 'afternoon']
+        );
+
+        // Initial selection.
+        local_courseaccess_save_selection($student->id, $course->id, $conditionid, $morningid);
+
+        // Change selection to afternoon.
+        $result = local_courseaccess_change_user_selection(
+            $student->id,
+            $course->id,
+            $conditionid,
+            $afternoonid,
+            $student->id
+        );
+        $this->assertTrue($result);
+
+        // Verify history table contains the entry with non-null courseid.
+        $history = $DB->get_record('local_courseaccess_history', [
+            'userid' => $student->id,
+            'conditionid' => $conditionid,
+        ]);
+        $this->assertNotEmpty($history);
+        $this->assertEquals($course->id, $history->courseid);
+        $this->assertEquals($morningid, $history->old_optionid);
+        $this->assertEquals($afternoonid, $history->new_optionid);
+        $this->assertEquals($student->id, $history->changed_by);
+
+        // Verify profile data was updated.
+        $shortname = local_courseaccess_get_field_shortname($course->id, $conditionid);
+        $field = $DB->get_record('user_info_field', ['shortname' => $shortname]);
+        $value = $DB->get_field('user_info_data', 'data', ['userid' => $student->id, 'fieldid' => $field->id]);
+        $this->assertSame('afternoon', $value);
+    }
+
+    /**
      * Return the id of the first (Morning) option for a condition.
      *
      * @param int $conditionid

@@ -42,12 +42,12 @@
         {{#condition.description}}
             <p class="lcc-modal-desc">{{condition.description}}</p>
         {{/condition.description}}
-        <form data-region="lcc-modal-form">
-            <div class="form-group">
-                <label for="lcc-modal-select-{{condition.id}}">
+        <form data-region="lcc-modal-form" class="lcc-modal-form">
+            <div class="form-group mb-3">
+                <label for="lcc-modal-select-{{condition.id}}" class="form-label">
                     {{#str}}modalselectlabel, local_courseaccess{{/str}}
                 </label>
-                <select id="lcc-modal-select-{{condition.id}}" class="form-control custom-select"
+                <select id="lcc-modal-select-{{condition.id}}" class="form-select custom-select"
                         data-region="lcc-modal-select" required>
                     <option value="">{{#str}}choosedots, core{{/str}}</option>
                     {{#options}}
@@ -55,7 +55,7 @@
                     {{/options}}
                 </select>
             </div>
-            <div class="lcc-modal-error text-danger mt-2" data-region="lcc-modal-error" role="alert" hidden></div>
+            <div class="lcc-modal-error text-danger mt-2 mb-2" data-region="lcc-modal-error" role="alert" hidden></div>
             <div class="lcc-modal-actions">
                 <button type="submit" class="btn btn-primary" data-region="lcc-modal-save">
                     {{#str}}save, core{{/str}}

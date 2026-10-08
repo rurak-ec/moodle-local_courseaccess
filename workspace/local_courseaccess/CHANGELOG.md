@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.9] - 2026-10-08
+
+### Fixed
+- **Fixed selection change failure**: Resolved `dml_write_exception` in `change_selection.php` where `$history->courseid` was missing, violating the not-null database constraint on `mdl_local_courseaccess_history`. Encapsulated logic in `local_courseaccess_change_user_selection()`.
+- Guaranteed form delivery: Form action in `change_selection.php` now has an explicit Moodle URL with `courseid` and includes a hidden `courseid` input.
+- Self-healing profile fields: `local_courseaccess_save_to_profile` automatically re-creates any missing custom profile field dynamically.
+
+### Added
+- Declared full support for **Moodle 5.3 (LTS)** (`$plugin->supported = [401, 503]`).
+- CI matrix covering `MOODLE_503_STABLE` on PHP 8.3 (pgsql) and PHP 8.4 (mariadb).
+- High-performance CSS containment (`contain: layout;`, `contain: layout paint;`) and `touch-action: manipulation;` on modals and interactive buttons.
+
+### Changed & Optimized
+- **Zero-impact Course Page Performance**:
+  - Added in-request runtime cache (`local_courseaccess_runtime_cache`) eliminating all duplicate queries during course view and navigation extension.
+  - Replaced $N$ queries with a single batch `JOIN`/`get_in_or_equal` query in `local_courseaccess_get_conditions_for_course()`.
+  - Fast-path completion check in `local_courseaccess_user_has_completed_all()` using `$USER->profile` already resident in memory (0 SQL queries on repeated course views).
+
 ## [2.4.0] - 2026-06-21 — Moodle 4.5 LTS support
 
 ### Changed

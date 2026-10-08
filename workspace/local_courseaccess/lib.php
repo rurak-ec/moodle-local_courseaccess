@@ -22,6 +22,29 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+defined('MOODLE_INTERNAL') || die();
+
+/**
+ * In-request memory cache for local_courseaccess to avoid redundant DB queries.
+ */
+class local_courseaccess_runtime_cache {
+    /** @var array<int, array> Cache of conditions per course */
+    public static $conditions = [];
+    /** @var array<string, bool> Cache of completion status [userid_courseid => bool] */
+    public static $completion = [];
+    /** @var array<string, stdClass|null> Cache of pending condition [userid_courseid => stdClass|null] */
+    public static $pending = [];
+
+    /**
+     * Reset all cached values (e.g. after database updates or during unit tests).
+     */
+    public static function reset(): void {
+        self::$conditions = [];
+        self::$completion = [];
+        self::$pending = [];
+    }
+}
+
 // PROFILE FIELD SHORTNAME (single source of truth).
 
 /**
@@ -72,7 +95,7 @@ function local_courseaccess_default_customid($course) {
  * @return int Number of profile-data rows cleared
  */
 function local_courseaccess_reset_profile_values($courseid, $conditionid) {
-    global $DB;
+    global $DB, $CFG, $USER;
 
     $shortname = local_courseaccess_get_field_shortname($courseid, $conditionid);
     $field = $DB->get_record('user_info_field', ['shortname' => $shortname]);
@@ -82,6 +105,14 @@ function local_courseaccess_reset_profile_values($courseid, $conditionid) {
 
     $count = $DB->count_records('user_info_data', ['fieldid' => $field->id]);
     $DB->delete_records('user_info_data', ['fieldid' => $field->id]);
+
+    if (!empty($USER->id)) {
+        require_once($CFG->dirroot . '/user/profile/lib.php');
+        profile_load_custom_fields($USER);
+    }
+    require_once($CFG->dirroot . '/course/lib.php');
+    get_fast_modinfo($courseid, 0, true);
+
     return $count;
 }
 
@@ -163,6 +194,10 @@ function local_courseaccess_customid_is_locked($courseid, $conditionid) {
 function local_courseaccess_get_conditions_for_course($courseid) {
     global $DB;
 
+    if (isset(local_courseaccess_runtime_cache::$conditions[$courseid])) {
+        return local_courseaccess_runtime_cache::$conditions[$courseid];
+    }
+
     // Fetch all conditions for this course, ordered by sort order.
     $conditions = $DB->get_records(
         'local_courseaccess_cond',
@@ -170,15 +205,31 @@ function local_courseaccess_get_conditions_for_course($courseid) {
         'sortorder ASC, timecreated ASC'
     );
 
-    // For each condition, fetch and attach its options.
-    foreach ($conditions as $condition) {
-        $condition->options = $DB->get_records(
-            'local_courseaccess_options',
-            ['conditionid' => $condition->id],
-            'sortorder ASC, id ASC'
-        );
+    if (empty($conditions)) {
+        local_courseaccess_runtime_cache::$conditions[$courseid] = [];
+        return [];
     }
 
+    // Single query to fetch all options for all conditions in this course.
+    $condids = array_keys($conditions);
+    list($insql, $inparams) = $DB->get_in_or_equal($condids, SQL_PARAMS_NAMED);
+    $alloptions = $DB->get_records_select(
+        'local_courseaccess_options',
+        "conditionid $insql",
+        $inparams,
+        'sortorder ASC, id ASC'
+    );
+
+    foreach ($conditions as $condition) {
+        $condition->options = [];
+    }
+    foreach ($alloptions as $opt) {
+        if (isset($conditions[$opt->conditionid])) {
+            $conditions[$opt->conditionid]->options[$opt->id] = $opt;
+        }
+    }
+
+    local_courseaccess_runtime_cache::$conditions[$courseid] = $conditions;
     return $conditions;
 }
 
@@ -315,6 +366,7 @@ function local_courseaccess_save_conditions($courseid, $conditionsdata) {
         }
 
         $transaction->allow_commit();
+        local_courseaccess_runtime_cache::reset();
         return true;
     } catch (Exception $e) {
         $transaction->rollback($e);
@@ -414,7 +466,7 @@ function local_courseaccess_create_profile_field($courseid, $conditionid, $condi
  * @return bool True on success, false if profile field doesn't exist
  */
 function local_courseaccess_save_to_profile($userid, $courseid, $conditionid, $value) {
-    global $DB, $CFG;
+    global $DB, $CFG, $USER;
     require_once($CFG->dirroot . '/user/profile/lib.php');
 
     // Find the profile field by its shortname (respects the condition's custom_id).
@@ -422,7 +474,14 @@ function local_courseaccess_save_to_profile($userid, $courseid, $conditionid, $v
     $field = $DB->get_record('user_info_field', ['shortname' => $shortname]);
 
     if (!$field) {
-        return false;
+        $condition = $DB->get_record('local_courseaccess_cond', ['id' => $conditionid]);
+        if ($condition) {
+            local_courseaccess_create_profile_field($courseid, $conditionid, $condition->name, $condition->custom_id);
+            $field = $DB->get_record('user_info_field', ['shortname' => $shortname]);
+        }
+        if (!$field) {
+            return false;
+        }
     }
 
     // Check if user already has a value for this field.
@@ -441,6 +500,22 @@ function local_courseaccess_save_to_profile($userid, $courseid, $conditionid, $v
         $data->dataformat = 0;
         $DB->insert_record('user_info_data', $data);
     }
+
+    // Refresh active session profile data if updating the currently logged-in user.
+    if (!empty($USER->id) && (int)$USER->id === (int)$userid) {
+        if (!isset($USER->profile) || !is_array($USER->profile)) {
+            $USER->profile = [];
+        }
+        $USER->profile[$shortname] = $value;
+        profile_load_custom_fields($USER);
+    }
+
+    // Invalidate course modinfo cache so section availability updates immediately.
+    require_once($CFG->dirroot . '/course/lib.php');
+    get_fast_modinfo($courseid, 0, true);
+
+    local_courseaccess_runtime_cache::reset();
+
     return true;
 }
 
@@ -512,19 +587,37 @@ function local_courseaccess_save_selection($userid, $courseid, $conditionid, $op
  * @return bool True if all conditions are completed (or no conditions exist)
  */
 function local_courseaccess_user_has_completed_all($userid, $courseid) {
-    global $DB;
+    global $DB, $USER;
 
-    // Get all conditions for this course.
-    $conditions = $DB->get_records('local_courseaccess_cond', ['courseid' => $courseid]);
+    $cachekey = $userid . '_' . $courseid;
+    if (isset(local_courseaccess_runtime_cache::$completion[$cachekey])) {
+        return local_courseaccess_runtime_cache::$completion[$cachekey];
+    }
+
+    // Get all conditions for this course (uses runtime cache).
+    $conditions = local_courseaccess_get_conditions_for_course($courseid);
 
     if (empty($conditions)) {
+        local_courseaccess_runtime_cache::$completion[$cachekey] = true;
         return true;  // No conditions defined = nothing to complete.
     }
+
+    // Fast path: if checking current session user and custom fields are in session, check directly.
+    $checkuserprofile = (!empty($USER->id) && (int)$USER->id === (int)$userid && isset($USER->profile) && is_array($USER->profile));
 
     // Check each condition to see if user has a non-empty value in profile field.
     foreach ($conditions as $condition) {
         // Build the profile field shortname (reuse the already-loaded custom_id).
         $shortname = local_courseaccess_get_field_shortname($courseid, $condition->id, $condition->custom_id);
+
+        if ($checkuserprofile && array_key_exists($shortname, $USER->profile)) {
+            $val = $USER->profile[$shortname];
+            if ($val === '' || $val === null || $val === false) {
+                local_courseaccess_runtime_cache::$completion[$cachekey] = false;
+                return false;
+            }
+            continue;
+        }
 
         // Check if profile field has a non-empty value.
         // We join user_info_data with user_info_field to find the right field.
@@ -537,11 +630,13 @@ function local_courseaccess_user_has_completed_all($userid, $courseid) {
 
         // If no data found or data is empty, user hasn't completed this condition.
         if (!$DB->record_exists_sql($sql, ['userid' => $userid, 'shortname' => $shortname])) {
+            local_courseaccess_runtime_cache::$completion[$cachekey] = false;
             return false;
         }
     }
 
     // All conditions have values.
+    local_courseaccess_runtime_cache::$completion[$cachekey] = true;
     return true;
 }
 
@@ -601,6 +696,14 @@ function local_courseaccess_extend_navigation_course($navigation, $course, $cont
                 $navigation->add_node($node);
             }
         }
+
+        // Fallback modal injection for Moodle versions < 4.4 (where Output Hooks API does not exist).
+        if (!class_exists('\core\hook\manager', false)) {
+            $pending = local_courseaccess_get_pending_condition($USER->id, $course->id);
+            if ($pending !== null) {
+                local_courseaccess_inject_modal($course->id, $pending);
+            }
+        }
     }
 }
 
@@ -622,21 +725,30 @@ function local_courseaccess_extend_navigation_course($navigation, $course, $cont
  *                       no modal should be shown.
  */
 function local_courseaccess_get_pending_condition($userid, $courseid) {
+    $cachekey = $userid . '_' . $courseid;
+    if (array_key_exists($cachekey, local_courseaccess_runtime_cache::$pending)) {
+        return local_courseaccess_runtime_cache::$pending[$cachekey];
+    }
+
     if (is_siteadmin($userid)) {
+        local_courseaccess_runtime_cache::$pending[$cachekey] = null;
         return null;
     }
 
     $context = \context_course::instance($courseid);
     if (has_capability('local/courseaccess:configure', $context, $userid)) {
+        local_courseaccess_runtime_cache::$pending[$cachekey] = null;
         return null;
     }
 
     if (local_courseaccess_user_has_completed_all($userid, $courseid)) {
+        local_courseaccess_runtime_cache::$pending[$cachekey] = null;
         return null;
     }
 
     $conditions = local_courseaccess_get_conditions_for_course($courseid);
     if (empty($conditions)) {
+        local_courseaccess_runtime_cache::$pending[$cachekey] = null;
         return null;
     }
 
@@ -645,9 +757,11 @@ function local_courseaccess_get_pending_condition($userid, $courseid) {
     if (empty($condition->enabled)) {
         // Condition paused = no modal. NOTE: per-activity access restrictions are.
         // Managed by Moodle core (availability) and are NOT affected by this flag.
+        local_courseaccess_runtime_cache::$pending[$cachekey] = null;
         return null;
     }
 
+    local_courseaccess_runtime_cache::$pending[$cachekey] = $condition;
     return $condition;
 }
 
@@ -825,3 +939,83 @@ function local_courseaccess_migrate_profile_field($courseid, $conditionid, $oldc
         throw new moodle_exception('migrationfailed', 'local_courseaccess', '', $e->getMessage());
     }
 }
+
+/**
+ * Change a user's selection for a condition and log to history.
+ *
+ * @param int $userid User ID
+ * @param int $courseid Course ID
+ * @param int $conditionid Condition ID
+ * @param int $optionid New option ID
+ * @param int|null $changedby ID of the user performing the change (defaults to $userid)
+ * @return bool True on success
+ * @throws moodle_exception If validation or database operation fails
+ */
+function local_courseaccess_change_user_selection(
+    int $userid,
+    int $courseid,
+    int $conditionid,
+    int $optionid,
+    ?int $changedby = null
+): bool {
+    global $DB;
+
+    $changedby = $changedby ?? $userid;
+
+    // Verify option belongs to this condition.
+    $option = $DB->get_record('local_courseaccess_options', [
+        'id' => $optionid,
+        'conditionid' => $conditionid,
+    ], '*', MUST_EXIST);
+
+    $transaction = $DB->start_delegated_transaction();
+
+    try {
+        // Retrieve current selection if exists.
+        $selection = $DB->get_record('local_courseaccess_sel', [
+            'userid' => $userid,
+            'conditionid' => $conditionid,
+        ]);
+
+        $oldoptionid = $selection ? (int)$selection->optionid : null;
+
+        if ($selection) {
+            $selection->optionid = $optionid;
+            $selection->timemodified = time();
+            $DB->update_record('local_courseaccess_sel', $selection);
+        } else {
+            $selection = new stdClass();
+            $selection->userid = $userid;
+            $selection->courseid = $courseid;
+            $selection->conditionid = $conditionid;
+            $selection->optionid = $optionid;
+            $selection->timecreated = time();
+            $selection->timemodified = time();
+            $DB->insert_record('local_courseaccess_sel', $selection);
+        }
+
+        // Update profile field for availability restrictions.
+        local_courseaccess_save_to_profile($userid, $courseid, $conditionid, $option->value);
+
+        // Record history entry with all required fields (including courseid!).
+        $history = new stdClass();
+        $history->userid = $userid;
+        $history->courseid = $courseid;
+        $history->conditionid = $conditionid;
+        $history->old_optionid = $oldoptionid;
+        $history->new_optionid = $optionid;
+        $history->changed_by = $changedby;
+        $history->timecreated = time();
+        $DB->insert_record('local_courseaccess_history', $history);
+
+        $transaction->allow_commit();
+
+        local_courseaccess_runtime_cache::reset();
+
+        return true;
+    } catch (\Throwable $e) {
+        $transaction->rollback($e);
+        throw $e;
+    }
+}
+

@@ -91,65 +91,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && confirm_sesskey()) {
     $optionid = required_param('optionid', PARAM_INT);
 
     try {
-        // Verify option exists and belongs to this condition.
-        $option = $DB->get_record('local_courseaccess_options', [
-            'id' => $optionid,
-            'conditionid' => $condition->id,
-        ], '*', MUST_EXIST);
+        local_courseaccess_change_user_selection($USER->id, $courseid, $condition->id, $optionid, $USER->id);
 
-        // Save the new selection.
-        $transaction = $DB->start_delegated_transaction();
-
-        try {
-            // Update or create selection.
-            $selection = $DB->get_record('local_courseaccess_sel', [
-                'userid' => $USER->id,
-                'conditionid' => $condition->id,
-            ]);
-
-            $oldoptionid = $selection ? $selection->optionid : null;
-
-            if ($selection) {
-                $selection->optionid = $optionid;
-                $selection->timemodified = time();
-                $DB->update_record('local_courseaccess_sel', $selection);
-            } else {
-                $selection = new stdClass();
-                $selection->userid = $USER->id;
-                $selection->courseid = $courseid;
-                $selection->conditionid = $condition->id;
-                $selection->optionid = $optionid;
-                $selection->timecreated = time();
-                $selection->timemodified = time();
-                $DB->insert_record('local_courseaccess_sel', $selection);
-            }
-
-            // Update profile field.
-            local_courseaccess_save_to_profile($USER->id, $courseid, $condition->id, $option->value);
-
-            // Save to history.
-            $history = new stdClass();
-            $history->userid = $USER->id;
-            $history->conditionid = $condition->id;
-            $history->old_optionid = $oldoptionid;
-            $history->new_optionid = $optionid;
-            $history->changed_by = $USER->id;
-            $history->timecreated = time();
-            $DB->insert_record('local_courseaccess_history', $history);
-
-            $transaction->allow_commit();
-
-            redirect(
-                new moodle_url('/course/view.php', ['id' => $courseid]),
-                get_string('selectionchanged', 'local_courseaccess'),
-                null,
-                \core\output\notification::NOTIFY_SUCCESS
-            );
-        } catch (Exception $e) {
-            $transaction->rollback($e);
-            throw $e;
-        }
-    } catch (Exception $e) {
+        redirect(
+            new moodle_url('/course/view.php', ['id' => $courseid]),
+            get_string('selectionchanged', 'local_courseaccess'),
+            null,
+            \core\output\notification::NOTIFY_SUCCESS
+        );
+    } catch (\Throwable $e) {
+        debugging('Error changing selection in local_courseaccess: ' . $e->getMessage(), DEBUG_DEVELOPER);
         redirect(
             new moodle_url('/local/courseaccess/change_selection.php', ['courseid' => $courseid]),
             get_string('errorchanging', 'local_courseaccess'),
@@ -202,12 +153,13 @@ if ($currentselection) {
 
 // Selection form.
 echo html_writer::start_tag('form', [
-    'action' => '',
+    'action' => (new moodle_url('/local/courseaccess/change_selection.php', ['courseid' => $courseid]))->out(false),
     'method' => 'post',
     'id' => 'change-selection-form',
     'class' => 'card',
 ]);
 echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
+echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'courseid', 'value' => $courseid]);
 
 echo html_writer::start_div('card-body');
 
