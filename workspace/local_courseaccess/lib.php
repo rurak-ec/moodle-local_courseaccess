@@ -212,7 +212,7 @@ function local_courseaccess_get_conditions_for_course($courseid) {
 
     // Single query to fetch all options for all conditions in this course.
     $condids = array_keys($conditions);
-    list($insql, $inparams) = $DB->get_in_or_equal($condids, SQL_PARAMS_NAMED);
+    [$insql, $inparams] = $DB->get_in_or_equal($condids, SQL_PARAMS_NAMED);
     $alloptions = $DB->get_records_select(
         'local_courseaccess_options',
         "conditionid $insql",
@@ -1018,4 +1018,3 @@ function local_courseaccess_change_user_selection(
         throw $e;
     }
 }
-
