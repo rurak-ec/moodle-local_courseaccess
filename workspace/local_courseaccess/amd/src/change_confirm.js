@@ -39,7 +39,8 @@ export const init = () => {
     let confirmed = false;
 
     form.addEventListener('submit', (e) => {
-        if (confirmed) {
+        // Cancelling changes nothing: no need to ask.
+        if (confirmed || (e.submitter && e.submitter.name === 'cancel')) {
             return;
         }
         e.preventDefault();

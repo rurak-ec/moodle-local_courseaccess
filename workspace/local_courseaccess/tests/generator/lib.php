@@ -32,7 +32,8 @@ class local_courseaccess_generator extends component_generator_base {
      * The "options" field is a comma-separated list of "Display:value" pairs
      * (value defaults to the display name when omitted).
      *
-     * @param array|stdClass $record Must include courseid; may include name, options, enabled, allowchange.
+     * @param array|stdClass $record Must include courseid; may include name, options, enabled, allowchange,
+     *                               multiple (checkboxes) and maxselect.
      * @return stdClass The created condition record.
      */
     public function create_condition($record): stdClass {
@@ -64,6 +65,8 @@ class local_courseaccess_generator extends component_generator_base {
             'custom_id' => $record['custom_id'] ?? '',
             'enabled' => isset($record['enabled']) ? (int) $record['enabled'] : 1,
             'allowchange' => isset($record['allowchange']) ? (int) $record['allowchange'] : 0,
+            'multiple' => empty($record['multiple']) ? 0 : 1,
+            'maxselect' => isset($record['maxselect']) ? (int) $record['maxselect'] : 0,
             'sortorder' => 0,
             'options' => $options,
         ]]);

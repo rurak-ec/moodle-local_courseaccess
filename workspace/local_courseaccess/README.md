@@ -5,10 +5,10 @@
 [![License](https://img.shields.io/badge/License-GPLv3-green.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
 [![Status](https://img.shields.io/badge/Status-Stable-green.svg)]()
 
-Plugin local de Moodle que obliga a los estudiantes a elegir una opción (turno, grupo, modalidad, etc.) antes de acceder al contenido de un curso, y usa esa elección para alimentar las restricciones de acceso nativas de Moodle.
+Plugin local de Moodle que obliga a los estudiantes a elegir una opción (turno, grupo, modalidad, etc.) antes de acceder al contenido de un curso, y usa esa elección para alimentar las restricciones de acceso nativas de Moodle. Cada condición es una **lista** (una opción) o **casillas** (varias opciones, con un máximo opcional).
 
 **Componente:** `local_courseaccess`
-**Versión:** v2.4.9 (build 2026100801)
+**Versión:** v2.5.0 (build 2026111000)
 **Licencia:** GNU GPL v3 or later
 
 ---
@@ -37,7 +37,7 @@ En cursos con varios grupos o turnos es habitual querer mostrar actividades dist
 
 2. **El estudiante entra al curso por primera vez.** Un hook de salida de Moodle (`before_standard_top_of_body_html_generation`) detecta, en las páginas de curso, que el campo de perfil está vacío y lanza un modal JavaScript bloqueante. El estudiante no puede cerrar el modal ni interactuar con el curso hasta que elige una opción.
 
-3. **El estudiante elige.** Una llamada AJAX guarda la selección en dos lugares: la tabla interna del plugin (`local_courseaccess_sel`) y el campo de perfil de usuario de Moodle. La página se recarga y el modal no vuelve a aparecer.
+3. **El estudiante elige.** La función externa `local_courseaccess_save_selection` (llamada con `core/ajax`) guarda la selección en dos lugares: la tabla interna del plugin (`local_courseaccess_sel`, una fila por opción elegida) y el campo de perfil de usuario de Moodle. La página se recarga y el modal no vuelve a aparecer.
 
 4. **Las restricciones de Moodle funcionan solas.** Como el campo de perfil ahora tiene valor, cualquier actividad configurada con "Restringir acceso → Perfil de usuario → debe ser igual a turno_manana" se muestra u oculta automáticamente sin intervención adicional del plugin.
 
@@ -92,7 +92,9 @@ El formulario permite configurar una condición por curso:
 |---|---|
 | Nombre | Lo que verá el estudiante en el modal (ej. "Turno") |
 | Descripción | Texto opcional explicativo en el modal |
-| Opciones | Mínimo 2. Cada opción tiene un nombre visible y un valor técnico |
+| Tipo de selección | **Lista** (el estudiante elige una opción) o **Casillas** (marca una o más). Queda fijo cuando ya hay estudiantes que eligieron |
+| Máximo de opciones | Solo con casillas: cuántas puede marcar cada estudiante (0 = sin tope; si no, 2 o más) |
+| Opciones | Mínimo 2. Cada opción tiene un nombre visible y un valor técnico (con casillas, sin el carácter `\|`) |
 
 El **valor técnico** de cada opción es el string que Moodle comparará en las restricciones de acceso. Debe ser único dentro de la condición y sin espacios (ej. `turno_manana`, `grupo_a`).
 
@@ -114,6 +116,12 @@ Una vez que los estudiantes han elegido, cualquier actividad o recurso puede res
 
 Solo los estudiantes cuyo campo de perfil tenga ese valor verán la actividad. Moodle gestiona la visibilidad de forma completamente nativa; el plugin no interviene en este paso.
 
+**Con casillas** el campo de perfil guarda todos los valores elegidos entre barras (ej. `|turno_manana|turno_noche|`), así que la restricción es otra:
+
+- Condición: **"contiene"** → el valor **entre barras** (ej. `|turno_manana|`), tal como lo muestra la tabla de la página de configuración.
+- Las barras evitan que un valor coincida dentro de otro más largo (`ADM` dentro de `ADM-ENLINEA`).
+- "es igual a" no sirve con casillas: la página de configuración avisa si quedan restricciones así.
+
 ---
 
 ## Experiencia del estudiante
@@ -122,9 +130,9 @@ Solo los estudiantes cuyo campo de perfil tenga ese valor verán la actividad. M
 
 1. El estudiante abre el curso.
 2. Aparece un modal de pantalla completa con fondo oscuro bloqueante (z-index 9999). No se puede cerrar con ESC ni clic fuera.
-3. El modal muestra el nombre y la descripción de la condición, y un dropdown con las opciones.
+3. El modal muestra el nombre y la descripción de la condición, y las opciones: un dropdown (lista) o casillas. Con casillas y un máximo, al llegar al máximo las demás se desactivan.
 4. El estudiante elige y hace clic en "Guardar".
-5. Una llamada AJAX guarda la selección. Al terminar, la página se recarga.
+5. La función externa guarda la selección. Al terminar, la página se recarga.
 6. El modal no vuelve a aparecer. Las restricciones de acceso se aplican con el valor elegido.
 
 ### Visitas posteriores
@@ -137,8 +145,8 @@ Si el estudiante necesita cambiar su grupo o turno:
 
 1. En la navegación del curso aparece "Cambiar [NombreCondición]" (solo si ya hizo una selección previa).
 2. La página de cambio (no es un modal bloqueante) muestra la selección actual y un aviso de que el cambio afecta las actividades visibles.
-3. El estudiante elige la nueva opción y guarda.
-4. El plugin actualiza la tabla de selecciones, el campo de perfil y registra el cambio en la tabla de historial con la opción anterior y la nueva.
+3. El estudiante elige la nueva opción (o marca y desmarca casillas) y guarda.
+4. El plugin actualiza la tabla de selecciones, el campo de perfil y registra el cambio en la tabla de historial: con una lista, la opción anterior y la nueva; con casillas, una fila por cada opción añadida y por cada una quitada.
 5. Las restricciones de acceso aplican inmediatamente.
 
 ---
@@ -170,10 +178,10 @@ El checkbox "Habilitar Condición" permite desactivar temporalmente la condició
 
 | Tabla | Contenido |
 |---|---|
-| `mdl_local_courseaccess_cond` | Una condición por curso. Campos: `id`, `courseid`, `name`, `description`, `custom_id`, `enabled`, `sortorder`, `timecreated`, `timemodified` |
+| `mdl_local_courseaccess_cond` | Una condición por curso. Campos: `id`, `courseid`, `name`, `description`, `custom_id`, `enabled`, `allowchange`, `multiple` (casillas), `maxselect` (máximo con casillas; 0 = sin tope), `sortorder`, `timecreated`, `timemodified` |
 | `mdl_local_courseaccess_options` | Opciones de cada condición. Campos: `id`, `conditionid`, `name`, `value`, `sortorder` |
-| `mdl_local_courseaccess_sel` | Selección actual de cada estudiante. Índice único en `(userid, conditionid)` |
-| `mdl_local_courseaccess_history` | Historial de cambios. Registra `old_optionid`, `new_optionid`, `changed_by` y timestamp por cada modificación |
+| `mdl_local_courseaccess_sel` | Selección actual de cada estudiante: una fila por opción elegida. Índice único en `(userid, conditionid, optionid)` |
+| `mdl_local_courseaccess_history` | Historial de cambios. Registra `old_optionid`, `new_optionid`, `changed_by` y timestamp por cada modificación; con casillas, una opción añadida no tiene `old_optionid` y una quitada no tiene `new_optionid` |
 
 > Las tablas respetan el límite de 28 caracteres recomendado por Moodle (ej. `local_courseaccess_cond` tiene 23; la más larga, `local_courseaccess_options`, tiene 26), por lo que pasan la verificación de una publicación en moodle.org.
 
@@ -192,9 +200,10 @@ Render de página de curso (course-view-*)
                             └── devuelve la condición pendiente
                     └── local_courseaccess_inject_modal()
                             └── $PAGE->requires->js_call_amd('local_courseaccess/condition_modal', 'init', [$data])
-                                    └── Modal JS → AJAX POST /local/courseaccess/ajax.php
-                                            └── local_courseaccess_save_selection()
-                                                    ├── INSERT/UPDATE mdl_local_courseaccess_sel
+                                    └── Modal JS → core/ajax → local_courseaccess_save_selection (función externa)
+                                            └── \local_courseaccess\selection::set()
+                                                    ├── INSERT/UPDATE/DELETE mdl_local_courseaccess_sel
+                                                    ├── INSERT mdl_local_courseaccess_history (si cambia lo que ya tenía)
                                                     └── INSERT/UPDATE mdl_user_info_data  ← campo de perfil
 ```
 
@@ -209,18 +218,18 @@ La función `local_courseaccess_user_has_completed_all()` consulta directamente 
 
 ### JavaScript (AMD)
 
-El módulo `local_courseaccess/condition_modal` (`amd/src/condition_modal.js`) recibe un objeto JSON con la condición y sus opciones, renderiza el modal con estilos inline, envía la selección por AJAX y recarga la página al confirmar.
+El módulo `local_courseaccess/condition_modal` (`amd/src/condition_modal.js`) recibe un objeto JSON con la condición y sus opciones, renderiza el modal desde una plantilla Mustache, envía la selección con `core/ajax` (`amd/src/repository.js`) y recarga la página al confirmar.
 
 El archivo minificado (`amd/build/condition_modal.min.js`) debe mantenerse sincronizado con el fuente. En el entorno de desarrollo con bind-mount, el servidor PHP sirve el `.min.js` directamente desde el repositorio via `javascript.php`.
 
 ### Seguridad
 
-- **CSRF:** todos los formularios y el endpoint AJAX validan `sesskey` con `confirm_sesskey()`.
+- **CSRF:** los formularios validan `sesskey` (el de configuración con `confirm_sesskey()`, los de selección con la Forms API) y la función externa, con la sesión de `core/ajax`.
 - **Permisos:** `require_capability()` en todas las páginas PHP del plugin.
 - **Limpieza de datos:** `clean_param()` con tipo específico en cada parámetro recibido.
 - **Integridad transaccional:** `$DB->start_delegated_transaction()` con rollback en configuración, selección y cambio de selección.
 - **Campos bloqueados:** `locked = 1` en los campos de perfil; los estudiantes no pueden editarlos desde su perfil.
-- **Validación de relaciones en AJAX:** `ajax.php` verifica que `conditionid` pertenezca al `courseid` dado y que `optionid` pertenezca a ese `conditionid` antes de guardar.
+- **Validación al guardar:** la función externa valida el contexto del curso y que la condición sea la que el usuario tiene pendiente; `selection::validate()` comprueba que cada opción sea de esa condición, que haya al menos una, que una lista tenga solo una y que no se pase del máximo.
 
 ### Capacidades
 

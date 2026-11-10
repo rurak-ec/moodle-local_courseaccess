@@ -17,9 +17,13 @@
  * Blocking condition-selection overlay for course-view pages.
  *
  * The overlay markup comes from a Mustache template (so every value is escaped),
- * its text from language strings, and the save request goes to ajax.php with the
- * session key. It deliberately uses a template-rendered overlay rather than a
- * core/modal dialog because the gate must not be dismissable.
+ * its text from language strings, and the choice is saved through the
+ * local_courseaccess_save_selection web service. It deliberately uses a
+ * template-rendered overlay rather than a core/modal dialog because the gate
+ * must not be dismissable.
+ *
+ * A condition is a list (the student picks one option in a dropdown) or
+ * checkboxes (the student ticks one or more, up to the condition's maximum).
  *
  * @module     local_courseaccess/condition_modal
  * @copyright  2025 Rurak
@@ -28,12 +32,13 @@
 
 import Templates from 'core/templates';
 import {getString} from 'core/str';
-import Config from 'core/config';
+import {saveSelection} from './repository';
 
 const SELECTORS = {
     OVERLAY: '[data-region="lcc-modal"]',
     FORM: '[data-region="lcc-modal-form"]',
     SELECT: '[data-region="lcc-modal-select"]',
+    OPTION: '[data-region="lcc-modal-option"]',
     SAVE: '[data-region="lcc-modal-save"]',
     ERROR: '[data-region="lcc-modal-error"]',
 };
@@ -41,7 +46,8 @@ const SELECTORS = {
 /**
  * Initialise and show the blocking selection overlay.
  *
- * @param {object} data The condition data: {courseid, condition:{id,name,description}, options:[{id,name}]}.
+ * @param {object} data The condition data:
+ *     {courseid, condition:{id,name,description}, multiple, maxselect, options:[{id,name}]}.
  */
 export const init = async(data) => {
     if (document.querySelector(SELECTORS.OVERLAY)) {
@@ -60,11 +66,14 @@ export const init = async(data) => {
 
     const form = overlay.querySelector(SELECTORS.FORM);
     const select = overlay.querySelector(SELECTORS.SELECT);
+    const boxes = Array.from(overlay.querySelectorAll(SELECTORS.OPTION));
     const saveButton = overlay.querySelector(SELECTORS.SAVE);
     const errorBox = overlay.querySelector(SELECTORS.ERROR);
+    const max = data.multiple ? (parseInt(data.maxselect, 10) || 0) : 0;
 
-    if (select) {
-        select.focus();
+    const first = select || boxes[0];
+    if (first) {
+        first.focus();
     }
 
     const showError = (message) => {
@@ -72,12 +81,41 @@ export const init = async(data) => {
         errorBox.hidden = false;
     };
 
+    // The chosen option ids: the ticked boxes, or the option of the dropdown.
+    const chosen = () => {
+        if (data.multiple) {
+            return boxes.filter((box) => box.checked).map((box) => parseInt(box.value, 10));
+        }
+        return select && select.value ? [parseInt(select.value, 10)] : [];
+    };
+
+    // At the maximum, the boxes that are not ticked cannot be ticked.
+    const applyMaximum = () => {
+        if (!max) {
+            return;
+        }
+        const full = boxes.filter((box) => box.checked).length >= max;
+        boxes.forEach((box) => {
+            box.disabled = full && !box.checked;
+        });
+    };
+
+    // Choosing something clears the message of a previous attempt.
+    const onChoice = () => {
+        errorBox.hidden = true;
+        applyMaximum();
+    };
+    boxes.forEach((box) => box.addEventListener('change', onChoice));
+    if (select) {
+        select.addEventListener('change', onChoice);
+    }
+
     form.addEventListener('submit', async(e) => {
         e.preventDefault();
         errorBox.hidden = true;
 
-        const optionid = select.value;
-        if (!optionid) {
+        const optionids = chosen();
+        if (!optionids.length) {
             showError(await getString('mustselect', 'local_courseaccess'));
             return;
         }
@@ -87,25 +125,12 @@ export const init = async(data) => {
         saveButton.textContent = await getString('saving', 'local_courseaccess');
 
         try {
-            const body = new URLSearchParams({
-                sesskey: Config.sesskey,
-                courseid: data.courseid,
-                conditionid: data.condition.id,
-                optionid: optionid,
-            });
-            const response = await fetch(Config.wwwroot + '/local/courseaccess/ajax.php', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                body: body.toString(),
-            });
-            const result = await response.json();
-            if (result.success) {
-                window.location.reload();
-                return;
-            }
-            showError(result.error || await getString('unknownerror', 'local_courseaccess'));
-        } catch {
-            showError(await getString('connectionerror', 'local_courseaccess'));
+            await saveSelection(data.courseid, data.condition.id, optionids);
+            window.location.reload();
+            return;
+        } catch (error) {
+            const fallback = await getString('connectionerror', 'local_courseaccess');
+            showError(error && error.message ? error.message : fallback);
         }
 
         saveButton.disabled = false;

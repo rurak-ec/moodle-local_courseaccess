@@ -17,18 +17,23 @@
 {{!
     @template local_courseaccess/condition_modal
 
-    Blocking overlay that asks the student to choose a course-access condition option.
+    Blocking overlay that asks the student to choose a course-access condition option:
+    one in a dropdown (list) or one or more with checkboxes.
     All values are escaped by Mustache.
 
     Context variables required for this template:
     * courseid - The course id.
     * condition - Object with id, name and (optional) description.
+    * multiple - Whether the student ticks checkboxes (several options) instead of picking one in a dropdown.
+    * maxselect - With checkboxes, how many options may be ticked (0: no limit).
     * options - Array of { id, name } selectable options.
 
     Example context (json):
     {
         "courseid": 2,
         "condition": { "id": 5, "name": "Shift", "description": "Choose your shift." },
+        "multiple": true,
+        "maxselect": 2,
         "options": [
             { "id": 10, "name": "Morning" },
             { "id": 11, "name": "Afternoon" }
@@ -43,6 +48,24 @@
             <p class="lcc-modal-desc">{{condition.description}}</p>
         {{/condition.description}}
         <form data-region="lcc-modal-form" class="lcc-modal-form">
+            {{#multiple}}
+            <fieldset class="lcc-modal-fieldset">
+                <legend class="lcc-modal-legend">{{#str}}modalcheckboxlabel, local_courseaccess{{/str}}</legend>
+                {{#maxselect}}
+                    <p class="lcc-modal-hint">{{#str}}modalmaxhint, local_courseaccess, {{maxselect}}{{/str}}</p>
+                {{/maxselect}}
+                <div class="lcc-modal-options">
+                    {{#options}}
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="lcc-modal-option-{{id}}"
+                                   value="{{id}}" data-region="lcc-modal-option">
+                            <label class="form-check-label" for="lcc-modal-option-{{id}}">{{name}}</label>
+                        </div>
+                    {{/options}}
+                </div>
+            </fieldset>
+            {{/multiple}}
+            {{^multiple}}
             <div class="form-group mb-3">
                 <label for="lcc-modal-select-{{condition.id}}" class="form-label">
                     {{#str}}modalselectlabel, local_courseaccess{{/str}}
@@ -55,6 +78,7 @@
                     {{/options}}
                 </select>
             </div>
+            {{/multiple}}
             <div class="lcc-modal-error text-danger mt-2 mb-2" data-region="lcc-modal-error" role="alert" hidden></div>
             <div class="lcc-modal-actions">
                 <button type="submit" class="btn btn-primary" data-region="lcc-modal-save">

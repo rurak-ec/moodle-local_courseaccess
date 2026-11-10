@@ -20,6 +20,7 @@
  * - Auto-suggests the technical value from the display name (kept visible and
  *   editable; never overwrites a value the teacher edited or an existing value).
  * - Gates the "active" switch until the minimum config (name + 2 options) exists.
+ * - Enables the "maximum options" field only for a checkbox condition.
  * - Confirms before re-activating a paused condition that already has selections.
  *
  * @module     local_courseaccess/configure_form
@@ -158,6 +159,8 @@ export const init = async() => {
     const nameEl = document.getElementById('lcc-name');
     const addBtn = document.getElementById('lcc-add-option');
     const badge = document.getElementById('lcc-state-badge');
+    const typeMultiple = document.getElementById('lcc-type-multiple');
+    const maxEl = document.getElementById('lcc-maxselect');
     const initialEnabled = sw ? sw.checked : false;
     const hasSelections = !!form && form.getAttribute('data-hasselections') === '1';
     let confirmed = false;
@@ -224,6 +227,17 @@ export const init = async() => {
     }
     if (sw) {
         sw.addEventListener('change', updateBadge);
+    }
+
+    // The maximum only applies to checkboxes: a list is always one option.
+    if (typeMultiple && maxEl) {
+        const updateMax = () => {
+            maxEl.disabled = !typeMultiple.checked;
+        };
+        document.querySelectorAll('input[name="condition[multiple]"]').forEach((radio) => {
+            radio.addEventListener('change', updateMax);
+        });
+        updateMax();
     }
 
     // Re-activating a paused condition re-prompts every student: confirm first.

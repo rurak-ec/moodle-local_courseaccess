@@ -21,8 +21,8 @@ This is a Moodle local plugin (`local_courseaccess`) that allows teachers to def
 - Package: `local_courseaccess`
 - Type: Moodle local plugin
 - Target Moodle Version: 4.5+ (requires 2024100700)
-- Supported Moodle: 4.5 – 5.2 (`$plugin->supported = [405, 502]`); 4.5 uses Bootstrap 4, 5.0+ uses Bootstrap 5
-- Current Version: v2.4.0 (2026062002)
+- Supported Moodle: 4.5 – 5.3 (`$plugin->supported = [405, 503]`); 4.5 uses Bootstrap 4, 5.0+ uses Bootstrap 5
+- Current Version: v2.5.0 (2026111000)
 - Maturity: MATURITY_STABLE
 - Architecture: Course-specific conditions (v1.7.0+ refactor)
 
@@ -45,10 +45,11 @@ Unlike traditional form-based approaches, this plugin uses **JavaScript modal in
    - Output hook fires on course-view pages ([classes/hook_callbacks.php](workspace/local_courseaccess/classes/hook_callbacks.php))
    - Checks if student has completed selection via `local_courseaccess_user_has_completed_all()`
    - If incomplete, injects AMD module `local_courseaccess/condition_modal`
-   - Modal displays condition options, blocks page interaction
-   - AJAX call to [ajax.php](workspace/local_courseaccess/ajax.php) saves selection
-   - Selection saved to both:
-     - `local_courseaccess_sel` table (history)
+   - Modal displays condition options (a dropdown for a list, checkboxes for a checkbox condition), blocks page interaction
+   - `core/ajax` call to the external function `local_courseaccess_save_selection`
+     ([classes/external/save_selection.php](workspace/local_courseaccess/classes/external/save_selection.php)) saves the selection
+   - Selection saved (by `\local_courseaccess\selection::set()`) to both:
+     - `local_courseaccess_sel` table (one row per chosen option)
      - User profile field (for Moodle access restrictions)
    - Page auto-reloads, modal no longer appears
 
@@ -63,7 +64,8 @@ Unlike traditional form-based approaches, this plugin uses **JavaScript modal in
 Four main tables defined in [db/install.xml](workspace/local_courseaccess/db/install.xml):
 
 - **`local_courseaccess_cond`**: Course conditions
-  - Fields: `id`, `courseid`, `name`, `description`, `sortorder`, `timecreated`, `timemodified`
+  - Fields: `id`, `courseid`, `name`, `description`, `custom_id`, `enabled`, `allowchange`, `multiple`, `maxselect`, `sortorder`, `timecreated`, `timemodified`
+  - `multiple`: 0 = list (one option), 1 = checkboxes (several); `maxselect`: with checkboxes, the most a student may tick (0 = no limit)
   - Key constraint: One condition per course (enforced via UI, not DB)
 
 - **`local_courseaccess_options`**: Options for each condition
@@ -73,12 +75,13 @@ Four main tables defined in [db/install.xml](workspace/local_courseaccess/db/ins
 
 - **`local_courseaccess_sel`**: User selections
   - Fields: `id`, `userid`, `courseid`, `conditionid`, `optionid`, `timecreated`, `timemodified`
-  - Unique index on `userid, conditionid`
+  - One row per chosen option: unique index on `userid, conditionid, optionid`
   - Used for history tracking and reporting
 
 - **`local_courseaccess_history`**: Change audit trail
   - Fields: `id`, `userid`, `courseid`, `conditionid`, `old_optionid`, `new_optionid`, `reason`, `changed_by`, `timecreated`
-  - Currently defined but not actively used
+  - Written by `selection::set()` when a user who had already chosen changes the choice: a list logs `old → new`;
+    checkboxes log each added option (`null → new`) and each removed one (`old → null`)
 
 > Note: the table names stay within Moodle's 28-character guideline (e.g. `local_courseaccess_cond` is 23 chars; the longest, `local_courseaccess_options`, is 26), so they pass a moodle.org submission check.
 
@@ -120,7 +123,12 @@ All defined in [lib.php](workspace/local_courseaccess/lib.php):
 - `local_courseaccess_get_pending_condition($userid, $courseid)`: Shared "should the modal show?" decision (skips admins, configurers, completed users, missing/disabled conditions). Returns the pending condition or null.
 
 **Selection Functions:**
-- `local_courseaccess_save_selection($userid, $courseid, $conditionid, $optionid)`: Saves to both selections table and profile field
+- `\local_courseaccess\selection::set($userid, $courseid, $condition, $optionids, $changedby)`
+  ([classes/selection.php](workspace/local_courseaccess/classes/selection.php)): **the one place that validates and saves a
+  choice** — selection rows, history and profile field, in a transaction. Every entry point goes through it. Related:
+  `selection::validate()`, `get_user_optionids()`, `profile_value()`, `restriction_value()`, `in_use()`.
+- `local_courseaccess_save_selection($userid, $courseid, $conditionid, $optionid)` and
+  `local_courseaccess_change_user_selection(...)`: single-option wrappers of `selection::set()`, kept for other plugins
 - `local_courseaccess_user_has_completed_all($userid, $courseid)`: Checks if all conditions completed (queries profile field directly)
 
 **Modal Injection:**
@@ -128,6 +136,20 @@ All defined in [lib.php](workspace/local_courseaccess/lib.php):
 
 **Navigation:**
 - `local_courseaccess_extend_navigation_course($navigation, $course, $context)`: Adds configuration link to course navigation
+
+### Selection type: list or checkboxes (v2.5.0)
+A condition is a **list** (`multiple = 0`, the student chooses exactly one option) or **checkboxes** (`multiple = 1`, one or
+more, up to `maxselect`; 0 = no limit, 1 is rejected).
+- **Profile field value.** List: the option value (`ENF`), restricted with "is equal to". Checkboxes: every chosen value
+  between separators, in option order (`|ENF|MED|`), restricted with **"contains" `|ENF|`**. Core `availability_profile`
+  compares with `strpos`, so the separators keep `ADM` from matching `ADM-ONLINE`. A checkbox option value cannot contain `|`.
+- **The type is fixed once students have chosen** (`selection::in_use()`: a selection row or a stored value exists), enforced
+  in `local_courseaccess_save_conditions` (`error_typelocked`) and in the form (disabled radios). The maximum can change any time.
+- **Saving replaces** the user's previous choice. Saving the same choice changes nothing but restores an emptied profile field.
+- The configure page shows the exact restriction text per option and warns when a checkbox condition still has
+  "is equal to" restrictions (`\local_courseaccess\restrictions::count_by_operator()` walks the availability JSON).
+- `select.php` and `change_selection.php` share `\local_courseaccess\form\selection_form` (a `select`, or a group of
+  `advcheckbox`).
 
 ### Capabilities
 
@@ -144,7 +166,9 @@ The plugin uses Moodle's AMD (Asynchronous Module Definition) system:
 - **Student modal module**: `local_courseaccess/condition_modal` ([amd/src/condition_modal.js](workspace/local_courseaccess/amd/src/condition_modal.js))
   - **Injection**: Via `$PAGE->requires->js_call_amd('local_courseaccess/condition_modal', 'init', [$data])`, called from the output hook
   - **Data structure**: JSON object with `courseid`, `condition` (id, name, description), and `options` array
-  - **Modal behavior**: Blocks all interaction, sends AJAX to [ajax.php](workspace/local_courseaccess/ajax.php), reloads on success
+  - **Data structure** also carries `multiple` and `maxselect` (checkboxes, and how many may be ticked)
+  - **Modal behavior**: Blocks all interaction, saves through `amd/src/repository.js` (`core/ajax` →
+    `local_courseaccess_save_selection`), reloads on success
 - **Configure-form module**: `local_courseaccess/configure_form` ([amd/src/configure_form.js](workspace/local_courseaccess/amd/src/configure_form.js))
   - Powers the teacher form: add/remove option rows (min 2, `core/notification`), and auto-suggests the technical value from the display name (kept visible/editable; never overwrites a manual or existing value)
   - Init from [configure.php](workspace/local_courseaccess/configure.php) via `js_call_amd('local_courseaccess/configure_form', 'init')`
@@ -246,11 +270,10 @@ The plugin automatically manages Moodle custom user profile fields:
 
 3. **Transactional Saves**: `local_courseaccess_save_conditions()` uses `$DB->start_delegated_transaction()` to ensure atomicity when saving conditions and options.
 
-4. **AJAX Security**: [ajax.php](workspace/local_courseaccess/ajax.php) validates:
-   - User is logged in and enrolled in course
-   - Session key is valid
-   - Condition belongs to specified course
-   - Option belongs to specified condition
+4. **AJAX Security**: the external function `local_courseaccess_save_selection` validates:
+   - Parameters and the course context (`validate_context`: logged in, can access the course; `core/ajax` sends the session key)
+   - The condition is the one still pending for the current user (first choice only)
+   - Every option belongs to that condition, and the number chosen fits its type and maximum (`selection::validate()`)
 
 5. **Modal Skips**: `local_courseaccess_get_pending_condition()` returns null (no modal) for:
    - Site administrators

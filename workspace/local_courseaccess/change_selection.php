@@ -74,9 +74,7 @@ if (empty($condition->allowchange)) {
     );
 }
 
-// Get options for this condition.
-$options = local_courseaccess_get_options_for_condition($condition->id);
-if (empty($options)) {
+if (empty($condition->options)) {
     redirect(
         new moodle_url('/course/view.php', ['id' => $courseid]),
         get_string('nooptionsavailable', 'local_courseaccess'),
@@ -85,44 +83,53 @@ if (empty($options)) {
     );
 }
 
-// FORM PROCESSING (MUST BE BEFORE ANY OUTPUT).
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && confirm_sesskey()) {
-    $optionid = required_param('optionid', PARAM_INT);
-
-    try {
-        local_courseaccess_change_user_selection($USER->id, $courseid, $condition->id, $optionid, $USER->id);
-
-        redirect(
-            new moodle_url('/course/view.php', ['id' => $courseid]),
-            get_string('selectionchanged', 'local_courseaccess'),
-            null,
-            \core\output\notification::NOTIFY_SUCCESS
-        );
-    } catch (\Throwable $e) {
-        debugging('Error changing selection in local_courseaccess: ' . $e->getMessage(), DEBUG_DEVELOPER);
-        redirect(
-            new moodle_url('/local/courseaccess/change_selection.php', ['courseid' => $courseid]),
-            get_string('errorchanging', 'local_courseaccess'),
-            null,
-            \core\output\notification::NOTIFY_ERROR
-        );
-    }
-}
-
-// PAGE SETUP AND OUTPUT.
-
 $PAGE->set_url('/local/courseaccess/change_selection.php', ['courseid' => $course->id]);
 $PAGE->set_context($context);
 $PAGE->set_title(get_string('changeselection', 'local_courseaccess'));
 $PAGE->set_heading($course->fullname);
 $PAGE->set_pagelayout('incourse');
 
+// What the student has chosen: ticked (checkboxes) or selected (list) to start with.
+$current = \local_courseaccess\selection::get_user_optionids((int)$USER->id, (int)$condition->id);
+
+$form = new \local_courseaccess\form\selection_form(
+    $PAGE->url->out(false),
+    ['condition' => $condition, 'current' => $current, 'cancel' => true],
+    'post',
+    '',
+    ['id' => 'change-selection-form']
+);
+
+// FORM PROCESSING (MUST BE BEFORE ANY OUTPUT).
+
+if ($form->is_cancelled()) {
+    redirect(new moodle_url('/course/view.php', ['id' => $courseid]));
+}
+
+if ($form->get_data()) {
+    try {
+        \local_courseaccess\selection::set((int)$USER->id, $courseid, $condition, $form->get_optionids(), (int)$USER->id);
+    } catch (\Throwable $e) {
+        debugging('Error changing selection in local_courseaccess: ' . $e->getMessage(), DEBUG_DEVELOPER);
+        redirect(
+            $PAGE->url,
+            get_string('errorchanging', 'local_courseaccess'),
+            null,
+            \core\output\notification::NOTIFY_ERROR
+        );
+    }
+    redirect(
+        new moodle_url('/course/view.php', ['id' => $courseid]),
+        get_string('selectionchanged', 'local_courseaccess'),
+        null,
+        \core\output\notification::NOTIFY_SUCCESS
+    );
+}
+
+// PAGE OUTPUT.
+
 // Confirm before applying a change (it re-evaluates the student's access).
 $PAGE->requires->js_call_amd('local_courseaccess/change_confirm', 'init');
-
-// Get user's current selection.
-$currentselection = local_courseaccess_get_user_selection($USER->id, $courseid, $condition->id);
 
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('changeselection', 'local_courseaccess'));
@@ -133,81 +140,22 @@ echo html_writer::div(
     'alert alert-warning'
 );
 
-// Display condition information.
-echo html_writer::start_div('card mb-3');
-echo html_writer::start_div('card-body');
-echo html_writer::tag('h4', format_string($condition->name), ['class' => 'card-title']);
 if (!empty($condition->description)) {
-    echo html_writer::div(format_text($condition->description, FORMAT_HTML), 'card-text');
+    echo html_writer::div(format_text($condition->description, FORMAT_PLAIN), 'mb-3');
 }
-echo html_writer::end_div();
-echo html_writer::end_div();
 
 // Display current selection.
-if ($currentselection) {
+if ($current) {
+    $names = [];
+    foreach ($current as $optionid) {
+        $names[] = format_string($condition->options[$optionid]->name);
+    }
     echo html_writer::start_div('alert alert-info');
     echo html_writer::tag('strong', get_string('currentselection', 'local_courseaccess') . ': ');
-    echo html_writer::tag('span', format_string($currentselection->option_name));
+    echo html_writer::tag('span', implode(', ', $names));
     echo html_writer::end_div();
 }
 
-// Selection form.
-echo html_writer::start_tag('form', [
-    'action' => (new moodle_url('/local/courseaccess/change_selection.php', ['courseid' => $courseid]))->out(false),
-    'method' => 'post',
-    'id' => 'change-selection-form',
-    'class' => 'card',
-]);
-echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
-echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'courseid', 'value' => $courseid]);
-
-echo html_writer::start_div('card-body');
-
-echo html_writer::start_div('form-group');
-echo html_writer::tag('label', get_string('selectoption', 'local_courseaccess', $condition->name), [
-    'for' => 'option-select',
-    'class' => 'font-weight-bold',
-]);
-echo html_writer::start_tag('select', [
-    'id' => 'option-select',
-    'name' => 'optionid',
-    'class' => 'form-control custom-select',
-    'required' => 'required',
-]);
-
-// Add placeholder.
-echo html_writer::tag('option', get_string('selectoption_default', 'local_courseaccess'), [
-    'value' => '',
-    'disabled' => 'disabled',
-    'selected' => $currentselection ? false : 'selected',
-]);
-
-// Add options.
-foreach ($options as $option) {
-    $selected = ($currentselection && $currentselection->option_id == $option->id) ? 'selected' : false;
-    echo html_writer::tag('option', $option->name, [
-        'value' => $option->id,
-        'selected' => $selected,
-    ]);
-}
-
-echo html_writer::end_tag('select');
-echo html_writer::end_div();
-
-// Buttons.
-echo html_writer::start_div('form-group mt-3');
-echo html_writer::tag('button', get_string('saveselection', 'local_courseaccess'), [
-    'type' => 'submit',
-    'class' => 'btn btn-primary mr-2',
-]);
-echo html_writer::link(
-    new moodle_url('/course/view.php', ['id' => $courseid]),
-    get_string('cancel'),
-    ['class' => 'btn btn-secondary']
-);
-echo html_writer::end_div();
-
-echo html_writer::end_div();  // Card-body.
-echo html_writer::end_tag('form');
+$form->display();
 
 echo $OUTPUT->footer();

@@ -28,8 +28,12 @@
     * conditionname, conditiondescription, customid - field values
     * courseid - used as custom_id placeholder
     * enabled - bool, whether the active switch is checked
-    * options - array of {index, id, name, value} (server-rendered rows)
+    * multiple - bool, students tick checkboxes (several options) instead of picking one in a list
+    * maxselect - int, with checkboxes, how many options a student may tick (0: no limit)
+    * typelocked - bool, the selection type cannot be changed any more (students have chosen)
+    * options - array of {index, id, name, value, restrictionvalue} (server-rendered rows)
     * hascondition - bool, show the "what's next" panel
+    * needcontainstext - warning shown when restrictions of a checkbox condition still use "is equal to"
     * fielddisplayname - profile field display name (course shortname)
     * fieldshortname - profile field shortname (cond_..._...)
     * nextstep3text - pre-rendered step 3 string (has the field name baked in)
@@ -45,6 +49,9 @@
         "customid": "C1",
         "customiddefault": "C1",
         "enabled": false,
+        "multiple": false,
+        "maxselect": 0,
+        "typelocked": false,
         "allowchange": false,
         "customid_locked": false,
         "hasselections": false,
@@ -94,6 +101,40 @@
         <div class="card mb-3">
             <div class="card-body">
                 <h4 class="card-title h5">{{#str}}step2_heading, local_courseaccess{{/str}}</h4>
+
+                {{! How students choose: one option in a list, or several with checkboxes (up to a maximum) }}
+                <fieldset class="mb-3" id="lcc-selecttype" {{#typelocked}}disabled{{/typelocked}}>
+                    <legend class="form-label fw-bold fs-6 mb-2">{{#str}}selecttype, local_courseaccess{{/str}}</legend>
+                    <div class="form-check">
+                        <input type="radio" class="form-check-input" id="lcc-type-single" name="condition[multiple]"
+                               value="0" {{^multiple}}checked{{/multiple}}>
+                        <label class="form-check-label" for="lcc-type-single">
+                            {{#str}}selecttype_single, local_courseaccess{{/str}}
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input type="radio" class="form-check-input" id="lcc-type-multiple" name="condition[multiple]"
+                               value="1" {{#multiple}}checked{{/multiple}}>
+                        <label class="form-check-label" for="lcc-type-multiple">
+                            {{#str}}selecttype_multiple, local_courseaccess{{/str}}
+                        </label>
+                    </div>
+                    <small class="form-text text-muted">
+                        {{#typelocked}}{{#str}}selecttype_locked, local_courseaccess{{/str}}{{/typelocked}}
+                        {{^typelocked}}{{#str}}selecttype_help, local_courseaccess{{/str}}{{/typelocked}}
+                    </small>
+                </fieldset>
+
+                <div class="form-group mb-3">
+                    <label for="lcc-maxselect" class="form-label fw-bold">
+                        {{#str}}maxselect, local_courseaccess{{/str}}
+                    </label>
+                    <input type="number" class="form-control lcc-maxselect" id="lcc-maxselect" name="condition[maxselect]"
+                           value="{{maxselect}}" min="0" step="1" inputmode="numeric"
+                           {{^multiple}}disabled{{/multiple}}>
+                    <small class="form-text text-muted">{{#str}}maxselect_help, local_courseaccess{{/str}}</small>
+                </div>
+
                 <p class="text-muted mb-1">{{#str}}optionsintro, local_courseaccess{{/str}}</p>
                 <small class="form-text text-muted d-block mb-3">{{#str}}optionvalue_help, local_courseaccess{{/str}}</small>
 
@@ -169,6 +210,11 @@
                 <i class="fa fa-pause-circle me-1" aria-hidden="true"></i> {{#str}}nextsteps_paused, local_courseaccess{{/str}}
             </div>
             {{/ispaused}}
+            {{#needcontainstext}}
+            <div class="alert alert-warning py-2 mb-3" role="alert">
+                <i class="fa fa-exclamation-triangle me-1" aria-hidden="true"></i> {{needcontainstext}}
+            </div>
+            {{/needcontainstext}}
             <p class="mb-3">{{#str}}nextsteps_intro, local_courseaccess{{/str}}</p>
             <div class="p-3 bg-white border rounded mb-3">
                 <span class="text-muted fw-bold">{{#str}}nextsteps_field, local_courseaccess{{/str}}:</span>
@@ -192,7 +238,7 @@
                         {{#options}}
                         <tr>
                             <td class="px-3">{{name}}</td>
-                            <td class="px-3"><code class="fw-bold">{{value}}</code></td>
+                            <td class="px-3"><code class="fw-bold">{{restrictionvalue}}</code></td>
                         </tr>
                         {{/options}}
                     </tbody>

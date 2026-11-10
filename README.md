@@ -21,9 +21,12 @@ profile field, so teachers can then show different activities per group using Mo
 
 ### What it does
 - A teacher configures one condition per course (name + at least two options) and activates it.
-- On first course view, a **blocking overlay** asks the student to choose an option. The choice is
+- A condition is a **list** (each student chooses one option) or **checkboxes** (each student ticks one or
+  more, up to an optional maximum).
+- On first course view, a **blocking overlay** asks the student to choose. The choice is
   saved to a custom profile field and to the plugin's tables; the page reloads and the overlay is gone.
-- Teachers restrict activities/resources by that profile field so each group sees the right content.
+- Teachers restrict activities/resources by that profile field so each group sees the right content:
+  "is equal to" the option value for a list, "contains" the value between bars (`|value|`) for checkboxes.
 - Optional per-condition "allow students to change their selection" and an activate/pause lifecycle.
 
 ### Notes for administrators
@@ -40,7 +43,7 @@ profile field, so teachers can then show different activities per group using Mo
 
 ### Quality
 CI runs `moodle-plugin-ci` (phpcs, phpdoc, validate, savepoints, mustache, grunt, PHPUnit, Behat)
-across PHP 8.1–8.4 and Moodle 4.5/5.1/5.2 on PostgreSQL and MariaDB, plus a non-blocking `main` (5.3-dev) run.
+across PHP 8.1–8.4 and Moodle 4.5/5.1/5.2/5.3 on PostgreSQL and MariaDB, plus a non-blocking `main` run.
 
 ---
 
@@ -48,11 +51,14 @@ across PHP 8.1–8.4 and Moodle 4.5/5.1/5.2 on PostgreSQL and MariaDB, plus a no
 
 ### Qué hace
 - El profesorado configura una condición por curso (nombre + al menos dos opciones) y la activa.
-- En la primera visita al curso, un **overlay bloqueante** pide al estudiante elegir una opción. La
+- Una condición es una **lista** (cada estudiante elige una opción) o **casillas** (marca una o más, con
+  un máximo opcional).
+- En la primera visita al curso, un **overlay bloqueante** pide al estudiante elegir. La
   elección se guarda en un campo de perfil personalizado y en las tablas del plugin; la página se
   recarga y el overlay desaparece.
 - El profesorado restringe actividades/recursos por ese campo de perfil para mostrar el contenido
-  adecuado a cada grupo.
+  adecuado a cada grupo: «es igual a» el valor de la opción con una lista, «contiene» el valor entre
+  barras (`|valor|`) con casillas.
 - Opcionalmente, "permitir al estudiante cambiar su selección" por condición y un ciclo activar/pausar.
 
 ### Notas para administradores

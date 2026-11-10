@@ -267,8 +267,42 @@ function local_courseaccess_save_conditions($courseid, $conditionsdata) {
             $condition->custom_id = (string)$courseid;
             $condition->enabled = isset($cdata['enabled']) ? (int)$cdata['enabled'] : 1;
             $condition->allowchange = isset($cdata['allowchange']) ? (int)$cdata['allowchange'] : 0;
+            // Selection type: a list (one option) or checkboxes (several, up to maxselect; 0 = no limit).
+            // When the caller does not say, an existing condition keeps its type.
+            if (array_key_exists('multiple', $cdata)) {
+                $condition->multiple = empty($cdata['multiple']) ? 0 : 1;
+            } else {
+                $condition->multiple = $oldcondition ? (int)$oldcondition->multiple : 0;
+            }
+            if (!$condition->multiple) {
+                $condition->maxselect = 0;
+            } else if (array_key_exists('maxselect', $cdata)) {
+                $condition->maxselect = max(0, (int)$cdata['maxselect']);
+            } else {
+                $condition->maxselect = $oldcondition ? (int)$oldcondition->maxselect : 0;
+            }
             $condition->sortorder = isset($cdata['sortorder']) ? $cdata['sortorder'] : 0;
             $condition->timemodified = time();
+
+            // The type is fixed once students have chosen: the stored values and the restrictions have its shape.
+            if (
+                $oldcondition && (int)$oldcondition->multiple !== $condition->multiple
+                    && \local_courseaccess\selection::in_use($courseid, (int)$oldcondition->id)
+            ) {
+                throw new moodle_exception('error_typelocked', 'local_courseaccess');
+            }
+            if ($condition->multiple) {
+                // A maximum of one is a list.
+                if ($condition->maxselect === 1) {
+                    throw new moodle_exception('error_maxselect_min', 'local_courseaccess');
+                }
+                // The separator surrounds each value in the profile field, so a value cannot contain it.
+                foreach ($cdata['options'] as $o) {
+                    if (strpos((string)($o['value'] ?? ''), \local_courseaccess\selection::SEPARATOR) !== false) {
+                        throw new moodle_exception('error_valueseparator', 'local_courseaccess');
+                    }
+                }
+            }
 
             // Activation requires the minimum valid configuration: a name and at.
             // Least 2 options, each with a display name and a technical value.
@@ -506,6 +540,8 @@ function local_courseaccess_save_to_profile($userid, $courseid, $conditionid, $v
         }
         $USER->profile[$shortname] = $value;
         profile_load_custom_fields($USER);
+        // The course index of this session remembers which sections the user could see: make it load them again.
+        \core_courseformat\base::session_cache_reset(get_course($courseid));
     }
 
     // Invalidate course modinfo cache so section availability updates immediately.
@@ -522,51 +558,21 @@ function local_courseaccess_save_to_profile($userid, $courseid, $conditionid, $v
 /**
  * Save user selection for a condition
  *
- * This function performs two key actions:
- * 1. Saves the selection to the plugin's selections table (for history tracking)
- * 2. Saves the option value to the user's profile field (for Moodle restrictions)
+ * Saves one option as the user's whole choice (it replaces what the user had): the selections table, the change
+ * history when it replaces another option, and the profile field that Moodle's restrictions read.
  *
- * Called by ajax.php when student selects an option via the modal.
+ * Kept for callers that save a single option. {@see \local_courseaccess\selection::set()} takes several.
  *
  * @param int $userid User ID
  * @param int $courseid Course ID
  * @param int $conditionid Condition ID
  * @param int $optionid Selected option ID
  * @return bool True on success
- * @throws dml_missing_record_exception If option doesn't exist
+ * @throws moodle_exception If the option is not one of the condition's options
  */
 function local_courseaccess_save_selection($userid, $courseid, $conditionid, $optionid) {
-    global $DB;
-
-    // Get the option to retrieve its value.
-    $option = $DB->get_record('local_courseaccess_options', ['id' => $optionid], '*', MUST_EXIST);
-
-    // Check if user already has a selection for this condition.
-    $existing = $DB->get_record('local_courseaccess_sel', [
-        'userid' => $userid,
-        'conditionid' => $conditionid,
-    ]);
-
-    if ($existing) {
-        // Update existing selection.
-        $existing->optionid = $optionid;
-        $existing->timemodified = time();
-        $DB->update_record('local_courseaccess_sel', $existing);
-    } else {
-        // Create new selection.
-        $selection = new stdClass();
-        $selection->userid = $userid;
-        $selection->courseid = $courseid;
-        $selection->conditionid = $conditionid;
-        $selection->optionid = $optionid;
-        $selection->timecreated = time();
-        $selection->timemodified = time();
-        $DB->insert_record('local_courseaccess_sel', $selection);
-    }
-
-    // CRITICAL: Save to profile field for Moodle's access restrictions.
-    local_courseaccess_save_to_profile($userid, $courseid, $conditionid, $option->value);
-
+    $condition = \local_courseaccess\selection::get_condition((int)$conditionid);
+    \local_courseaccess\selection::set((int)$userid, (int)$courseid, $condition, [(int)$optionid]);
     return true;
 }
 
@@ -772,8 +778,8 @@ function local_courseaccess_get_pending_condition($userid, $courseid) {
  *
  * The modal will:
  * - Block all page interaction
- * - Display a dropdown with the condition's options
- * - Save the selection via AJAX
+ * - Display the condition's options: a dropdown (one option) or checkboxes (several)
+ * - Save the selection through the local_courseaccess_save_selection web service
  * - Reload the page on success
  *
  * @param int $courseid Course ID
@@ -790,6 +796,9 @@ function local_courseaccess_inject_modal($courseid, $condition) {
             'name' => $condition->name,
             'description' => $condition->description ?? '',
         ],
+        // Checkboxes (several options, up to maxselect; 0 = no limit) or a list (one option).
+        'multiple' => !empty($condition->multiple),
+        'maxselect' => !empty($condition->multiple) ? (int)($condition->maxselect ?? 0) : 0,
         'options' => [],
     ];
 
@@ -821,6 +830,9 @@ function local_courseaccess_get_options_for_condition($conditionid) {
 /**
  * Get user's current selection for a condition
  *
+ * With a checkbox condition the user may have chosen several options: this returns the first one in display order
+ * ({@see \local_courseaccess\selection::get_user_optionids()} returns them all).
+ *
  * Returns an object with the user's selection details including:
  * - option_id: ID of selected option
  * - option_name: Display name of selected option
@@ -830,7 +842,7 @@ function local_courseaccess_get_options_for_condition($conditionid) {
  * @param int $userid User ID
  * @param int $courseid Course ID
  * @param int $conditionid Condition ID
- * @return stdClass|null Selection object or null if no selection exists
+ * @return stdClass|false Selection object, or false if no selection exists
  */
 function local_courseaccess_get_user_selection($userid, $courseid, $conditionid) {
     global $DB;
@@ -841,13 +853,15 @@ function local_courseaccess_get_user_selection($userid, $courseid, $conditionid)
             JOIN {local_courseaccess_options} o ON o.id = s.optionid
             WHERE s.userid = :userid
               AND s.courseid = :courseid
-              AND s.conditionid = :conditionid";
+              AND s.conditionid = :conditionid
+            ORDER BY o.sortorder ASC, o.id ASC";
 
-    return $DB->get_record_sql($sql, [
+    $records = $DB->get_records_sql($sql, [
         'userid' => $userid,
         'courseid' => $courseid,
         'conditionid' => $conditionid,
-    ]);
+    ], 0, 1);
+    return $records ? reset($records) : false;
 }
 
 // CUSTOM ID AND MIGRATION FUNCTIONS.
@@ -939,7 +953,9 @@ function local_courseaccess_migrate_profile_field($courseid, $conditionid, $oldc
 }
 
 /**
- * Change a user's selection for a condition and log to history.
+ * Change a user's selection for a condition to one option and log it to the history.
+ *
+ * Kept for callers that save a single option. {@see \local_courseaccess\selection::set()} takes several.
  *
  * @param int $userid User ID
  * @param int $courseid Course ID
@@ -956,63 +972,7 @@ function local_courseaccess_change_user_selection(
     int $optionid,
     ?int $changedby = null
 ): bool {
-    global $DB;
-
-    $changedby = $changedby ?? $userid;
-
-    // Verify option belongs to this condition.
-    $option = $DB->get_record('local_courseaccess_options', [
-        'id' => $optionid,
-        'conditionid' => $conditionid,
-    ], '*', MUST_EXIST);
-
-    $transaction = $DB->start_delegated_transaction();
-
-    try {
-        // Retrieve current selection if exists.
-        $selection = $DB->get_record('local_courseaccess_sel', [
-            'userid' => $userid,
-            'conditionid' => $conditionid,
-        ]);
-
-        $oldoptionid = $selection ? (int)$selection->optionid : null;
-
-        if ($selection) {
-            $selection->optionid = $optionid;
-            $selection->timemodified = time();
-            $DB->update_record('local_courseaccess_sel', $selection);
-        } else {
-            $selection = new stdClass();
-            $selection->userid = $userid;
-            $selection->courseid = $courseid;
-            $selection->conditionid = $conditionid;
-            $selection->optionid = $optionid;
-            $selection->timecreated = time();
-            $selection->timemodified = time();
-            $DB->insert_record('local_courseaccess_sel', $selection);
-        }
-
-        // Update profile field for availability restrictions.
-        local_courseaccess_save_to_profile($userid, $courseid, $conditionid, $option->value);
-
-        // Record history entry with all required fields (including courseid!).
-        $history = new stdClass();
-        $history->userid = $userid;
-        $history->courseid = $courseid;
-        $history->conditionid = $conditionid;
-        $history->old_optionid = $oldoptionid;
-        $history->new_optionid = $optionid;
-        $history->changed_by = $changedby;
-        $history->timecreated = time();
-        $DB->insert_record('local_courseaccess_history', $history);
-
-        $transaction->allow_commit();
-
-        local_courseaccess_runtime_cache::reset();
-
-        return true;
-    } catch (\Throwable $e) {
-        $transaction->rollback($e);
-        throw $e;
-    }
+    $condition = \local_courseaccess\selection::get_condition($conditionid);
+    \local_courseaccess\selection::set($userid, $courseid, $condition, [$optionid], $changedby);
+    return true;
 }

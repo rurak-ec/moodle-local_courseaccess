@@ -71,6 +71,15 @@ if (data_submitted() && confirm_sesskey()) {
             'options' => [],
         ];
 
+        // Selection type (a list or checkboxes) and, with checkboxes, the maximum. A locked type is not submitted
+        // (its radios are disabled) and the saved one is kept.
+        if (isset($rawcondition['multiple'])) {
+            $conditiondata['multiple'] = clean_param($rawcondition['multiple'], PARAM_INT) ? 1 : 0;
+        }
+        if (isset($rawcondition['maxselect'])) {
+            $conditiondata['maxselect'] = max(0, (int)clean_param($rawcondition['maxselect'], PARAM_INT));
+        }
+
         // Process options.
         if (isset($rawcondition['options']) && is_array($rawcondition['options'])) {
             foreach ($rawcondition['options'] as $oid => $odata) {
@@ -150,6 +159,8 @@ if ($currentcondition && !empty($currentcondition->options)) {
             'id' => $opt->id,
             'name' => $opt->name,
             'value' => $opt->value,
+            // What the teacher types in "Restrict access" for this option.
+            'restrictionvalue' => \local_courseaccess\selection::restriction_value($currentcondition, (string)$opt->value),
         ];
     }
 } else {
@@ -174,6 +185,12 @@ $templatecontext = [
     'hascondition' => (bool)$currentcondition,
     // Whether students may change their selection after first choosing (default off).
     'allowchange' => $currentcondition ? !empty($currentcondition->allowchange) : false,
+    // Selection type: checkboxes (several options, up to maxselect; 0 = no limit) or a list (one option).
+    'multiple' => $currentcondition ? !empty($currentcondition->multiple) : false,
+    'maxselect' => $currentcondition ? (int)$currentcondition->maxselect : 0,
+    // The type is fixed once students have chosen.
+    'typelocked' => $currentcondition
+        ? \local_courseaccess\selection::in_use((int)$course->id, (int)$currentcondition->id) : false,
     // Whether any student already has a selection (drives the re-activation confirm in JS).
     'hasselections' => $currentcondition
         ? $DB->record_exists('local_courseaccess_sel', ['conditionid' => $currentcondition->id]) : false,
@@ -181,11 +198,26 @@ $templatecontext = [
 
 // Data for the post-save "what's next" panel.
 if ($currentcondition) {
+    $ismultiple = !empty($currentcondition->multiple);
     $templatecontext['nextstep3text'] = get_string(
-        'nextsteps_step3',
+        $ismultiple ? 'nextsteps_step3_multiple' : 'nextsteps_step3',
         'local_courseaccess',
         local_courseaccess_get_field_shortname($course->id)
     );
+    // With checkboxes the profile field holds several values: an "is equal to" restriction never matches it.
+    if ($ismultiple) {
+        $byoperator = \local_courseaccess\restrictions::count_by_operator(
+            (int)$course->id,
+            local_courseaccess_get_field_shortname($course->id)
+        );
+        if (!empty($byoperator['isequalto'])) {
+            $templatecontext['needcontainstext'] = get_string(
+                'restrictions_need_contains',
+                'local_courseaccess',
+                $byoperator['isequalto']
+            );
+        }
+    }
     $templatecontext['restrictioncount'] = local_courseaccess_count_field_restrictions(
         $course->id,
         $currentcondition->id

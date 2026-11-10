@@ -51,69 +51,22 @@ if (local_courseaccess_user_has_completed_all($USER->id, $course->id)) {
     redirect(new moodle_url('/course/view.php', ['id' => $course->id]));
 }
 
-// Handle Form Submission.
-if (data_submitted() && confirm_sesskey()) {
-    try {
-        $optionid = required_param('optionid', PARAM_INT);
+$form = new \local_courseaccess\form\selection_form($PAGE->url->out(false), ['condition' => $condition]);
 
-        // Validate option belongs to condition.
-        $validoption = false;
-        foreach ($condition->options as $opt) {
-            if ($opt->id == $optionid) {
-                $validoption = true;
-                break;
-            }
-        }
-
-        if ($validoption) {
-            local_courseaccess_save_selection($USER->id, $course->id, $condition->id, $optionid);
-            \core\notification::success(get_string('selectionssaved', 'local_courseaccess'));
-            redirect(new moodle_url('/course/view.php', ['id' => $course->id]));
-        } else {
-            throw new moodle_exception('invalidoption', 'local_courseaccess');
-        }
-    } catch (Exception $e) {
-        \core\notification::error($e->getMessage());
-    }
+if ($form->get_data()) {
+    \local_courseaccess\selection::set((int)$USER->id, (int)$course->id, $condition, $form->get_optionids());
+    redirect(
+        new moodle_url('/course/view.php', ['id' => $course->id]),
+        get_string('selectionssaved', 'local_courseaccess'),
+        null,
+        \core\output\notification::NOTIFY_SUCCESS
+    );
 }
 
-// Display Form.
 echo $OUTPUT->header();
 echo $OUTPUT->heading(get_string('selectcondition', 'local_courseaccess'));
-
-echo html_writer::start_tag('form', ['action' => $PAGE->url, 'method' => 'post']);
-echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
-
-echo html_writer::div('', 'card mb-4');
-echo html_writer::tag('h4', format_string($condition->name), ['class' => 'card-header']);
-echo html_writer::start_div('card-body');
-
 if (!empty($condition->description)) {
-    echo html_writer::div(format_text($condition->description), 'mb-3');
+    echo html_writer::div(format_text($condition->description, FORMAT_PLAIN), 'mb-3');
 }
-
-echo html_writer::start_div('form-group');
-echo html_writer::label(get_string('selectoption', 'local_courseaccess'), 'optionid');
-
-$options = [];
-foreach ($condition->options as $opt) {
-    $options[$opt->id] = $opt->name;
-}
-
-echo html_writer::select($options, 'optionid', '', [
-    'class' => 'form-control custom-select',
-    'id' => 'optionid',
-], ['' => get_string('choose')]);
-
-echo html_writer::end_div();  // Form-group.
-echo html_writer::end_div();  // Card-body.
-echo html_writer::end_div();  // Card.
-
-echo html_writer::div(
-    html_writer::tag('button', get_string('save'), ['type' => 'submit', 'class' => 'btn btn-primary']),
-    'mt-3'
-);
-
-echo html_writer::end_tag('form');
-
+$form->display();
 echo $OUTPUT->footer();

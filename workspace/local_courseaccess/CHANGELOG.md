@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.0] - 2026-11-10 — Checkboxes: several options per student
+
+### Added
+- **Selection type per condition**: a *list* (the student chooses one option, as before) or *checkboxes* (the
+  student ticks one or more), with an optional **maximum** of options (0 = no limit). Set in the configure form.
+- With checkboxes the profile field holds every chosen value between separators, for example `|ENF|MED|`, and
+  content is restricted with **"contains"** `|ENF|` instead of "is equal to". The separators keep a value from
+  matching inside a longer one (`ADM` inside `ADM-ONLINE`). The "what's next" panel shows the exact text for
+  each option and warns when restrictions of a checkbox condition still use "is equal to".
+- `\local_courseaccess\selection`: the one place that validates and saves a choice (`selection::set()`), used by
+  the overlay, the selection pages and other plugins. `\local_courseaccess\restrictions` counts the restrictions
+  that read the field, by operator.
+- External function `local_courseaccess_save_selection` (AJAX), called by the overlay through `core/ajax`
+  (`amd/src/repository.js`).
+- `\local_courseaccess\form\selection_form` (Forms API) for `select.php` and `change_selection.php`.
+
+### Changed
+- **Database** (upgrade step 2026111000): `local_courseaccess_cond` gains `multiple` and `maxselect`;
+  `local_courseaccess_sel` holds one row per chosen option (unique index on `userid, conditionid, optionid`);
+  `local_courseaccess_history.new_optionid` may be null (an option removed from a checkbox selection; an added
+  one has no old option).
+- The selection type is **fixed once students have chosen** (a selection or a stored profile value exists).
+- Saving the option a student already has no longer adds a history row.
+- `local_courseaccess_save_selection()` and `local_courseaccess_change_user_selection()` remain, as wrappers of
+  `selection::set()` for a single option.
+- **Requires Moodle 4.5** (`requires = 2024100700`, `supported = [405, 503]`), the range CI tests.
+
+### Fixed
+- After a student chooses or changes their selection, the course index (the drawer on the left) loads again: it kept
+  showing the sections the student could see before the choice until the next login.
+- The overlay's error message goes away as soon as the student chooses something.
+
+### Removed
+- `ajax.php`, replaced by the external function.
+
 ## [2.4.9] - 2026-10-08
 
 ### Fixed

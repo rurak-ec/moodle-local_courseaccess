@@ -111,6 +111,30 @@ final class provider_test extends \core_privacy\tests\provider_testcase {
     }
 
     /**
+     * A checkbox condition exports every chosen option, and a history of options added and removed.
+     */
+    public function test_export_several_options_and_their_history(): void {
+        global $DB;
+        [$course, , $context, $conditionid] = $this->setup_selection();
+        // The same course with checkboxes, for another student who ticks both options and then unticks one.
+        $DB->set_field('local_courseaccess_cond', 'multiple', 1, ['id' => $conditionid]);
+        \local_courseaccess_runtime_cache::reset();
+        $condition = \local_courseaccess\selection::get_condition($conditionid);
+        $ids = array_keys($condition->options);
+        $student = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        \local_courseaccess\selection::set($student->id, $course->id, $condition, $ids);
+        \local_courseaccess\selection::set($student->id, $course->id, $condition, [$ids[1]]);
+
+        $this->export_context_data_for_user($student->id, $context, 'local_courseaccess');
+        $writer = writer::with_context($context);
+        $plugin = get_string('pluginname', 'local_courseaccess');
+        $selections = $writer->get_data([$plugin, get_string('privacy:selections', 'local_courseaccess')]);
+        $this->assertSame(['Afternoon'], array_column($selections->selections, 'option'));
+        $history = $writer->get_data([$plugin, get_string('privacy:history', 'local_courseaccess')]);
+        $this->assertSame([['Morning', '']], array_map(fn($h) => [$h['oldoption'], $h['newoption']], $history->history));
+    }
+
+    /**
      * Deleting for a user removes their rows in the context.
      */
     public function test_delete_data_for_user(): void {

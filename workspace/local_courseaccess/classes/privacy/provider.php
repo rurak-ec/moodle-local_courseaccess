@@ -33,7 +33,7 @@ use core_privacy\local\request\userlist;
 use core_privacy\local\request\writer;
 
 /**
- * Privacy provider: the plugin stores each user's course condition selection and a change history.
+ * Privacy provider: the plugin stores the options each user chose for a course condition and a change history.
  */
 class provider implements
     \core_privacy\local\metadata\provider,
@@ -175,15 +175,20 @@ class provider implements
 
             // Change history (changes affecting the user, and changes the user made).
             $records = $DB->get_records_sql(
-                "SELECT h.id, h.userid, h.changed_by, h.new_optionid, h.timecreated
+                "SELECT h.id, h.userid, h.changed_by, h.timecreated, oldo.name AS oldoption, newo.name AS newoption
                    FROM {local_courseaccess_history} h
-                  WHERE h.courseid = :courseid AND (h.userid = :userid OR h.changed_by = :changedby)",
+              LEFT JOIN {local_courseaccess_options} oldo ON oldo.id = h.old_optionid
+              LEFT JOIN {local_courseaccess_options} newo ON newo.id = h.new_optionid
+                  WHERE h.courseid = :courseid AND (h.userid = :userid OR h.changed_by = :changedby)
+               ORDER BY h.timecreated ASC, h.id ASC",
                 ['courseid' => $courseid, 'userid' => $user->id, 'changedby' => $user->id]
             );
             $history = [];
             foreach ($records as $r) {
+                // A checkbox condition logs each option on its own: added (no old option) or removed (no new one).
                 $history[] = [
-                    'newoption' => $DB->get_field('local_courseaccess_options', 'name', ['id' => $r->new_optionid]),
+                    'oldoption' => (string)$r->oldoption,
+                    'newoption' => (string)$r->newoption,
                     'changedbyyou' => transform::yesno((int) $r->changed_by === (int) $user->id),
                     'timecreated' => transform::datetime($r->timecreated),
                 ];
